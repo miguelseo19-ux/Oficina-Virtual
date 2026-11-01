@@ -144,6 +144,26 @@ Controles abajo a la derecha, como en Gather:
 Arrastrando el mapa con el mouse recorrés la oficina; en cuanto movés a tu
 personaje, la cámara lo vuelve a seguir.
 
+## Mini ventana
+
+Como en Gather: una ventanita que queda flotando encima de cualquier pestaña o
+programa (un Google Docs, el mail…) mientras trabajás. Se abre con el botón de la
+barra de abajo (rectángulo con un recuadro chico) o la tecla `P`, y queda abierta
+hasta que la cerrás.
+
+- **Mini mapa** centrado en vos, con todos los demás (los que quedan fuera de la
+  vista aparecen en el borde, del lado donde están) y el radio de charla.
+- **Avisos**: "Nico se está acercando", "Nico está en tu escritorio" o "En llamada
+  con Nico".
+- **En llamada**: las caras de con quiénes estás hablando (tu cámara no se muestra,
+  en su lugar va el mapa). El sonido sigue saliendo de la pestaña de la oficina.
+- **Botones**: micrófono, cámara, no molestar y volver a la oficina (también
+  `M`, `V` y `B` con la ventanita activa).
+
+Funciona en **Chrome y Edge** (Safari y Firefox todavía no tienen esta función).
+En Chrome, además, si estás en una llamada y cambiás de pestaña, se abre sola
+(Chrome puede preguntar la primera vez) y se cierra sola al volver.
+
 ## Atajos y comandos
 
 Pestaña **⌨️ Atajos** en la barra de la izquierda (o tecla `?`).
@@ -157,6 +177,7 @@ Pestaña **⌨️ Atajos** en la barra de la izquierda (o tecla `?`).
 | Arrastrar el mapa | Recorrer la oficina |
 | G | Ver toda la oficina |
 | L | Oficina de día ↔ de noche |
+| P | Mini ventana (queda flotando sobre otras pestañas) |
 | 0 | Volver a la vista normal (sigue a tu personaje) |
 | M · Ctrl+Shift+A | Micrófono |
 | V · Ctrl+Shift+V | Cámara |

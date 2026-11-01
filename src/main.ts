@@ -9,6 +9,7 @@ import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
 import {Chat} from './chat'
 import {findPath} from './path'
+import {MiniWindow, miniSupported} from './mini'
 import {hydrateIcons, icon} from './icons'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -496,7 +497,8 @@ function start(me: Person, key: string) {
       '-': () => setZoom(zoomRel / 1.25),
       '0': resetView,
       g: toggleOverview,
-      l: () => setLightMode(light === 'day' ? 'night' : 'day')
+      l: () => setLightMode(light === 'day' ? 'night' : 'day'),
+      p: () => toggleMini()
     }
     REACTIONS.forEach((r, i) => (shortcuts[String(i + 1)] = () => react(r)))
     if (shortcuts[single] && !e.repeat) {
@@ -1591,6 +1593,47 @@ function start(me: Person, key: string) {
       /* ignore */
     }
   }
+
+  // ── mini ventana (flota sobre otras pestañas; ver src/mini.ts) ──
+  const mini = new MiniWindow({
+    me,
+    pos: () => pos,
+    zone: () => currentZone,
+    status: () => status,
+    players: () => net.players.values(),
+    talking: () => talking,
+    sameArea: (x, y) => areaAt(x, y) === areaAt(pos.x, pos.y),
+    where: () => whereLabel(),
+    light: () => light,
+    talkIn: TALK_IN,
+    call,
+    setBusy: busy => setManualStatus(busy ? 'busy' : 'available'),
+    onChange: open => {
+      $('btn-mini').classList.toggle('on', open)
+      $('btn-mini').title = open ? 'Cerrar la mini ventana (P)' : 'Mini ventana (P)'
+    }
+  })
+  function toggleMini() {
+    if (!miniSupported()) {
+      toast('La mini ventana funciona en Chrome y Edge (Safari y Firefox todavía no la tienen).', [], 'info')
+      return
+    }
+    mini.toggle()
+  }
+  function whereLabel() {
+    if (currentZone === me.desk) return 'En tu escritorio'
+    if (currentZone !== null) return zoneLabel(currentZone)
+    const area = areaAt(pos.x, pos.y)
+    return area ? `En la ${area.toLowerCase()}` : 'En el pasillo'
+  }
+  $('btn-mini').onclick = () => toggleMini()
+  // Chrome la abre sola si cambiás de pestaña en medio de una llamada (cámara o micrófono en uso)
+  try {
+    navigator.mediaSession?.setActionHandler('enterpictureinpicture' as MediaSessionAction, () => void mini.open(true))
+  } catch {
+    /* este navegador no tiene esa acción */
+  }
+  document.addEventListener('visibilitychange', () => !document.hidden && mini.onTabVisible())
 
   requestAnimationFrame(step)
 }

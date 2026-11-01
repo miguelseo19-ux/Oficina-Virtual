@@ -225,6 +225,27 @@ export class Call {
     return !this.panel.hidden
   }
 
+  /** Con quiénes estoy hablando ahora (sin mí), para la mini ventana. */
+  peers(): {key: string; name: string; color: string; stream: MediaStream | null; cam: boolean; mic: boolean; speaking: boolean}[] {
+    if (this.panel.hidden) return []
+    const now = performance.now()
+    return [...this.wanted()]
+      .map(id => this.net.players.get(id))
+      .filter((p): p is RemotePlayer => !!p)
+      .map(p => {
+        const person = personById(p.person)
+        return {
+          key: p.peerId,
+          name: person?.name ?? 'Invitado',
+          color: person?.color ?? '#888',
+          stream: this.remote.get(p.peerId) ?? null,
+          cam: p.cam !== false,
+          mic: p.mic !== false,
+          speaking: p.mic !== false && now - (this.lastSpoke.get(p.peerId) ?? 0) < 600
+        }
+      })
+  }
+
   setZone(zone: number | null) {
     if (zone === this.zone) return
     this.zone = zone
