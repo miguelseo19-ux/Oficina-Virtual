@@ -41,7 +41,12 @@ const P: Record<string, string> = {
   check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   info: '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.2M12 7.8h.01"/>',
   moon: '<path d="M19.5 14.5A8 8 0 0 1 9.5 4.5a8 8 0 1 0 10 10Z"/>',
-  minus: '<circle cx="12" cy="12" r="8.5"/><path d="M8 12h8"/>'
+  minus: '<circle cx="12" cy="12" r="8.5"/><path d="M8 12h8"/>',
+  'zoom-in': '<path d="M12 5v14M5 12h14"/>',
+  'zoom-out': '<path d="M5 12h14"/>',
+  desk: '<rect x="3.5" y="6.5" width="17" height="3" rx="1"/><path d="M5.5 9.5V19M18.5 9.5V19M12.5 9.5v5.5h6M14.8 12.2h1.6"/>',
+  locate: '<path d="M5 5l14.5 6-6.3 2.2L11 19.5 5 5Z"/>',
+  more: '<circle cx="6" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.3" fill="currentColor" stroke="none"/>'
 }
 
 export function icon(name: string, size = 20): string {

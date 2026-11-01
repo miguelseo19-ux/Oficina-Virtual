@@ -26,9 +26,9 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 |---|---|
 | `src/config.ts` | Personas (nombre, cargo, color, escritorio, `sprite`), relays, TURN |
 | `src/map.ts` | **Fuente de verdad** de la geometría en "píxeles de arte" (652×320, ×3 = mundo): cubículos, puertas, pasillo, ala derecha (sala de juntas con llamada + zona social sin llamada de sala, solo charla por cercanía), colisiones, `zoneAt`, `areaAt` |
-| `src/scene/*` | Escena pixel art generada por código (pixel.ts primitivas, sprites.ts, index.ts arma el lienzo estático) |
+| `src/scene/*` | Escena pixel art generada por código (pixel.ts primitivas, sprites.ts, index.ts arma el lienzo estático). `simple.ts`: plano liso de la vista *Simplificado* (vectores, desde `map.ts`, incluye `WALLS_ART`) |
 | `src/assets.ts` | Carga sprites de LimeZu (`public/assets/limezu/`): personajes 16×32 animados y atlas de muebles |
-| `src/main.ts` | Login, bucle de juego, cámara/zoom, capa dinámica del mapa, avatares, paneles, comandos `/ir`, atajos |
+| `src/main.ts` | Login, bucle de juego, cámara (`zoomRel` relativo a la vista de cerca, `follow`, arrastre, rueda/pellizco, vista general), modos de vista (Simplificado/Inmersivo/Automático, `ov.vista` en localStorage), capa dinámica del mapa, avatares, paneles, comandos `/ir`, atajos |
 | `src/net.ts` | Capa Trystero (state, chat, wave, react) |
 | `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla |
 | `src/chat.ts` | Chat General / Cerca / privados (historial en localStorage) |

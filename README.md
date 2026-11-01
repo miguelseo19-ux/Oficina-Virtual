@@ -101,6 +101,23 @@ Las salas con llamada están en `ROOMS` y las zonas sin llamada de sala en `AREA
   micrófono ^, cámara ^ (la flechita elige el dispositivo), reacciones,
   compartir pantalla, chat cercano y volver a tu escritorio.
 
+## Vista del mapa
+
+Controles abajo a la derecha, como en Gather:
+
+- **Escritorio**: ir a tu escritorio.
+- **Flecha**: volver a la vista normal (de cerca, siguiendo a tu personaje). Se
+  resalta cuando estás mirando otra parte o con otro zoom.
+- **+ / −**: acercar y alejar (también con la rueda del mouse o pellizcando el
+  trackpad, y con las teclas `+` y `-`).
+- **Mapa**: ver toda la oficina de una (tecla `G`); tocalo de nuevo para volver.
+- **⋯**: modo de vista. *Simplificado* (plano liso con cuadros y las personas
+  como círculos), *Inmersivo* (pixel art con personajes) o *Automático*
+  (simplificado al alejarte, inmersivo de cerca). Se recuerda en cada navegador.
+
+Arrastrando el mapa con el mouse recorrés la oficina; en cuanto movés a tu
+personaje, la cámara lo vuelve a seguir.
+
 ## Atajos y comandos
 
 Pestaña **⌨️ Atajos** en la barra de la izquierda (o tecla `?`).
@@ -110,6 +127,10 @@ Pestaña **⌨️ Atajos** en la barra de la izquierda (o tecla `?`).
 | Flechas / WASD | Moverte |
 | Enter | Abrir el chat |
 | H | Ir a mi escritorio |
+| + / − (o rueda / pellizco) | Acercar / alejar |
+| Arrastrar el mapa | Recorrer la oficina |
+| G | Ver toda la oficina |
+| 0 | Volver a la vista normal (sigue a tu personaje) |
 | M · Ctrl+Shift+A | Micrófono |
 | V · Ctrl+Shift+V | Cámara |
 | B | Ocupado ↔ Disponible |

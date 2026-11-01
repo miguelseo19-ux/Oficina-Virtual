@@ -271,6 +271,51 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
 #me-dot { position: absolute; right: 4px; bottom: 4px; border-color: #fff; }
 .sdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg); flex: none; }
 
+/* ── Controles del mapa (abajo a la derecha, mismo lenguaje que la burbuja) ── */
+#map-ctrl {
+  position: absolute; right: 18px; bottom: 18px; z-index: 6;
+  display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+}
+#map-ctrl > button, .mc-group {
+  background: #ffffff; color: rgba(2, 0, 3, 0.62);
+  border-radius: 14px;
+  box-shadow: 0 20px 44px -14px rgba(150, 88, 47, 0.55), 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+#map-ctrl button { width: 44px; height: 44px; display: grid; place-items: center; position: relative; }
+#map-ctrl > button:hover, .mc-group button:hover { color: #020003; background: rgba(2, 0, 3, 0.06); }
+#map-ctrl button:active { transform: scale(0.94); }
+#map-ctrl > button:hover { background: #f1eeec; }
+.mc-group { display: grid; overflow: hidden; }
+.mc-group button + button { border-top: 1px solid rgba(2, 0, 3, 0.08); }
+#map-ctrl button:disabled { opacity: 0.3; pointer-events: none; }
+#map-ctrl button.on { background: var(--magenta); color: #fff; }
+#btn-locate.cta { color: var(--magenta); box-shadow: 0 0 0 2px var(--magenta), 0 20px 44px -14px rgba(150, 88, 47, 0.55); }
+#map-ctrl [data-tip]::after {
+  content: attr(data-tip); position: absolute; right: calc(100% + 12px); top: 50%;
+  transform: translate(4px, -50%); opacity: 0; pointer-events: none; white-space: nowrap;
+  background: #020003; color: #fff; padding: 5px 9px; border-radius: 8px;
+  font: 500 10px var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  border: 1px solid var(--hairline); transition: opacity 150ms, transform 200ms var(--ease);
+}
+#map-ctrl [data-tip]:hover::after { opacity: 1; transform: translate(0, -50%); transition-delay: 250ms; }
+#map-ctrl:has(.menu:not([hidden])) [data-tip]::after { display: none; }
+#view-menu {
+  position: absolute; right: calc(100% + 12px); bottom: 0;
+  min-width: 250px; padding: 10px; gap: 4px;
+}
+#view-menu .eyebrow { color: rgba(2, 0, 3, 0.5); padding: 2px 6px 4px; }
+#view-menu button { width: 100%; height: auto; display: flex; justify-content: flex-start; gap: 12px; padding: 6px; border-radius: 12px; }
+#view-menu .thumb {
+  width: 56px; height: 56px; border-radius: 12px; flex: none; background: #020003;
+  box-shadow: inset 0 0 0 1px rgba(2, 0, 3, 0.12);
+}
+#view-menu button.sel .thumb { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--magenta); }
+#view-menu b { display: block; font-size: 15px; font-weight: 600; color: #020003; }
+#view-menu small { display: block; font: 500 9.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(2, 0, 3, 0.5); }
+#view-menu button.sel b { color: #6e3f20; }
+#world { cursor: default; }
+#world.dragging { cursor: grabbing; }
+
 /* Menús que salen de la burbuja: también claros, para que se lean como parte de ella */
 .menu {
   background: #ffffff; color: #020003;
@@ -362,6 +407,8 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
   #tiles { grid-template-columns: 1fr 1fr; }
   #pill { padding: 4px; }
   #pill button { width: 38px; height: 38px; }
+  #map-ctrl { right: 10px; bottom: 76px; }
+  #map-ctrl button { width: 38px; height: 38px; }
   #pill .split .caret { display: none; }
   #pill .sep { margin: 0 2px; }
 }

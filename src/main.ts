@@ -2,6 +2,7 @@ import './style.css'
 import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
 import {AREAS, ART, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
 import {buildScene} from './scene'
+import {drawSimpleMap} from './scene/simple'
 import {DIR_INDEX, FRAME, loadAssets, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
@@ -11,6 +12,7 @@ import {hydrateIcons, icon} from './icons'
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 const LS_USER = 'ov.user'
 const LS_KEY = 'ov.key'
+const LS_VIEW = 'ov.vista'
 const AWAY_AFTER_MS = 10 * 60 * 1000 // 10 minutos sin actividad → ausente
 const NEAR_RADIUS = 200
 // Charla por cercanía fuera de cubículos y salas (px de mundo; un avatar mide ~48 de ancho).
@@ -242,15 +244,16 @@ function start(me: Person, key: string) {
   $('side-collapse').onclick = () => setView(null)
 
   // ── menús de la burbuja (estado / reacciones / dispositivos) ──
-  const MENUS = ['status-menu', 'react-menu', 'devices']
+  const MENUS = ['status-menu', 'react-menu', 'devices', 'view-menu']
   function openMenu(id: string | null) {
     for (const m of MENUS) $(m).hidden = m !== id
     $('btn-react').classList.toggle('on', id === 'react-menu')
+    $('btn-view').classList.toggle('on', id === 'view-menu')
   }
   const toggleMenu = (id: string) => openMenu($(id).hidden ? id : null)
   document.addEventListener('ov:menu', e => openMenu((e as CustomEvent<string | null>).detail))
   document.addEventListener('pointerdown', e => {
-    if (!(e.target as HTMLElement).closest('#pill-wrap')) openMenu(null)
+    if (!(e.target as HTMLElement).closest('#pill-wrap, #map-ctrl')) openMenu(null)
   })
   $('pill-me').onclick = () => toggleMenu('status-menu')
   $('btn-react').onclick = () => toggleMenu('react-menu')
@@ -482,7 +485,12 @@ function start(me: Person, key: string) {
       v: () => call.toggleCam(),
       b: () => setManualStatus(manualStatus === 'busy' ? 'available' : 'busy'),
       e: () => toggleView('team'),
-      '?': () => toggleView('shortcuts')
+      '?': () => toggleView('shortcuts'),
+      '+': () => setZoom(zoomRel * 1.25),
+      '=': () => setZoom(zoomRel * 1.25),
+      '-': () => setZoom(zoomRel / 1.25),
+      '0': resetView,
+      g: toggleOverview
     }
     REACTIONS.forEach((r, i) => (shortcuts[String(i + 1)] = () => react(r)))
     if (shortcuts[single] && !e.repeat) {
@@ -499,11 +507,6 @@ function start(me: Person, key: string) {
   })
   window.addEventListener('keyup', e => keys.delete(keyName(e)))
   window.addEventListener('blur', () => keys.clear())
-
-  canvas.addEventListener('pointerdown', e => {
-    const r = canvas.getBoundingClientRect()
-    target = screenToWorld(e.clientX - r.left, e.clientY - r.top)
-  })
 
   $('btn-home').onclick = () => goHome()
   $('btn-logout').onclick = () => {
@@ -564,11 +567,37 @@ function start(me: Person, key: string) {
   }
 
   // ── cámara / viewport ──
+  // zoom = píxeles de pantalla por píxel de mundo. La vista "normal" (zoomRel = 1) es la de cerca
+  // (VIEW_ART, siguiendo al avatar). Se puede alejar hasta ver toda la oficina y acercar hasta
+  // MAX_ZOOM_REL. Arrastrar el mapa suelta la cámara; moverse la vuelve a pegar al avatar.
+  const MAX_ZOOM_REL = 2.2
+  const AUTO_SIMPLE_BELOW = 0.75 // modo Automático: más lejos que esto, vista simplificada
+  const UI_MIN = 0.85 // carteles y círculos no se achican más que esto en pantalla al alejarse
+  type ViewMode = 'simple' | 'immersive' | 'auto'
+  const VIEW_MODES: ViewMode[] = ['simple', 'immersive', 'auto']
+  const VIEW_NAMES: Record<ViewMode, string> = {simple: 'Simplificado', immersive: 'Inmersivo', auto: 'Automático'}
+  let viewMode: ViewMode = VIEW_MODES.find(m => m === lsGet(LS_VIEW)) ?? 'auto'
+  let simpleView = false // lo que se está dibujando en este cuadro
+  let uiK = 1 // escala extra de personas/globos (vista simplificada muy lejos)
+  let plateK = 1 // escala extra de los carteles
   let vw = 0
   let vh = 0
   let zoom = 1
   let camX = 0
   let camY = 0
+  let cx = pos.x // centro de la cámara (mundo)
+  let cy = pos.y
+  let baseArt = 3 // tamaño de un píxel de arte en pantalla, en la vista normal
+  let fitArt = 1 // ...cuando entra toda la oficina
+  let zoomRel = 1 // zoom pedido, relativo a la vista normal
+  let zoomNow = 1 // zoom mostrado: se acerca suave a zoomRel
+  let follow = true
+  let snapCam = true
+  let anchor: {sx: number; sy: number; wx: number; wy: number} | null = null // punto fijo al hacer zoom
+  const minZoomRel = () => Math.min(1, fitArt / baseArt)
+  const inOverview = () => zoomRel <= minZoomRel() + 0.001
+  const isSimple = () => viewMode === 'simple' || (viewMode === 'auto' && zoomNow < AUTO_SIMPLE_BELOW)
+
   function resize() {
     const dpr = window.devicePixelRatio || 1
     vw = canvas.clientWidth
@@ -576,32 +605,209 @@ function start(me: Person, key: string) {
     canvas.width = Math.round(vw * dpr)
     canvas.height = Math.round(vh * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    // Vista de cerca, estilo Gather: se ve una parte de la oficina (unos VIEW_ART píxeles de arte)
-    // y la cámara sigue al avatar. Nunca menos que lo necesario para cubrir todo el lienzo (sin
-    // franjas negras). El tamaño de cada píxel de arte se redondea HACIA ARRIBA a cuartos de
-    // píxel: nítido y sin huecos.
+    // Vista normal, estilo Gather: se ve una parte de la oficina (unos VIEW_ART píxeles de arte),
+    // nunca menos que lo necesario para cubrir el lienzo (sin franjas negras). El píxel de arte se
+    // redondea HACIA ARRIBA a cuartos de píxel: nítido y sin huecos.
     const close = Math.min(vw / VIEW_ART.w, vh / VIEW_ART.h)
     const cover = Math.max(vw / ART.w, vh / ART.h)
-    const artPx = Math.max(1.5, Math.ceil(Math.max(close, cover) * 4) / 4)
-    zoom = artPx / PX
+    baseArt = Math.max(1.5, Math.ceil(Math.max(close, cover) * 4) / 4)
+    fitArt = Math.min(vw / ART.w, vh / ART.h) * 0.96 // vista general, con un poco de aire
+    zoomRel = clamp(zoomRel, minZoomRel(), MAX_ZOOM_REL)
+    zoomNow = clamp(zoomNow, minZoomRel(), MAX_ZOOM_REL)
+    zoom = (baseArt * zoomNow) / PX
+    snapCam = true
+    syncMapCtrl()
   }
   new ResizeObserver(resize).observe(canvas)
   resize()
 
-  function updateCamera() {
+  function setZoom(rel: number, at?: {sx: number; sy: number}) {
+    zoomRel = clamp(rel, minZoomRel(), MAX_ZOOM_REL)
+    if (!follow) {
+      // con la cámara suelta, el punto bajo el mouse (o el centro) queda quieto mientras se hace zoom
+      const sx = at?.sx ?? vw / 2
+      const sy = at?.sy ?? vh / 2
+      const w = screenToWorld(sx, sy)
+      anchor = {sx, sy, wx: w.x, wy: w.y}
+    }
+    syncMapCtrl()
+  }
+  function setFollow(on: boolean) {
+    if (follow === on) return
+    follow = on
+    anchor = null
+    syncMapCtrl()
+  }
+  /** Vista normal: de cerca y siguiendo al avatar. */
+  function resetView() {
+    setFollow(true)
+    setZoom(1)
+  }
+  function toggleOverview() {
+    if (inOverview()) return resetView()
+    setFollow(false)
+    setZoom(minZoomRel())
+  }
+
+  function updateCamera(dt: number) {
+    if (zoomNow !== zoomRel) {
+      zoomNow += (zoomRel - zoomNow) * (1 - Math.pow(0.00005, dt))
+      if (Math.abs(zoomRel - zoomNow) < 0.002) zoomNow = zoomRel
+    }
+    zoom = (baseArt * zoomNow) / PX
     const viewW = vw / zoom
     const viewH = vh / zoom
-    camX = viewW >= WORLD.w ? (WORLD.w - viewW) / 2 : clamp(pos.x - viewW / 2, 0, WORLD.w - viewW)
-    camY = viewH >= WORLD.h ? (WORLD.h - viewH) / 2 : clamp(pos.y - viewH / 2, 0, WORLD.h - viewH)
+    if (follow) {
+      // la cámara alcanza al avatar con un poco de suavidad (y se desliza al volver a seguirlo)
+      const k = snapCam ? 1 : 1 - Math.pow(0.0005, dt)
+      cx += (pos.x - cx) * k
+      cy += (pos.y - cy) * k
+    } else if (anchor) {
+      cx = anchor.wx - anchor.sx / zoom + viewW / 2
+      cy = anchor.wy - anchor.sy / zoom + viewH / 2
+      if (zoomNow === zoomRel) anchor = null
+    }
+    cx = viewW >= WORLD.w ? WORLD.w / 2 : clamp(cx, viewW / 2, WORLD.w - viewW / 2)
+    cy = viewH >= WORLD.h ? WORLD.h / 2 : clamp(cy, viewH / 2, WORLD.h - viewH / 2)
+    camX = cx - viewW / 2
+    camY = cy - viewH / 2
+    snapCam = false
   }
   function screenToWorld(sx: number, sy: number) {
     return {x: sx / zoom + camX, y: sy / zoom + camY}
   }
 
+  // ── controles del mapa (abajo a la derecha) ──
+  function syncMapCtrl() {
+    ;($('btn-zoom-in') as HTMLButtonElement).disabled = zoomRel >= MAX_ZOOM_REL - 0.001
+    ;($('btn-zoom-out') as HTMLButtonElement).disabled = inOverview()
+    $('btn-overview').classList.toggle('on', inOverview())
+    $('btn-overview').dataset.tip = inOverview() ? 'Volver a la vista normal · G' : 'Ver toda la oficina · G'
+    // la flecha se destaca cuando la vista no es la normal: un toque y volvés a tu personaje
+    $('btn-locate').classList.toggle('cta', !follow || Math.abs(zoomRel - 1) > 0.001)
+  }
+  $('btn-desk').onclick = () => goHome()
+  $('btn-locate').onclick = () => resetView()
+  $('btn-zoom-in').onclick = () => setZoom(zoomRel * 1.25)
+  $('btn-zoom-out').onclick = () => setZoom(zoomRel / 1.25)
+  $('btn-overview').onclick = () => toggleOverview()
+  $('btn-view').onclick = () => {
+    toggleMenu('view-menu')
+    if (!$('view-menu').hidden) drawThumbs()
+  }
+  for (const b of document.querySelectorAll<HTMLButtonElement>('#view-menu button[data-mode]')) {
+    b.onclick = () => {
+      viewMode = b.dataset.mode as ViewMode
+      lsSet(LS_VIEW, viewMode)
+      openMenu(null)
+      toast(`Vista: ${VIEW_NAMES[viewMode]}`, [], 'office')
+    }
+  }
+  /** Miniaturas del menú de vista, dibujadas con el mapa real (primeros cubículos y el pasillo). */
+  function drawThumbs() {
+    const crop = {x: 12, y: 22, w: 112, h: 112} // en píxeles de arte
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#view-menu button[data-mode]')) {
+      const mode = b.dataset.mode as ViewMode
+      b.classList.toggle('sel', mode === viewMode)
+      const c = b.querySelector('canvas')!
+      const t = c.getContext('2d')!
+      const s = c.width / crop.w // px de la miniatura por píxel de arte
+      const immersive = () => {
+        t.imageSmoothingEnabled = false
+        t.drawImage(scene, crop.x, crop.y, crop.w, crop.h, 0, 0, c.width, c.height)
+      }
+      const simple = () => {
+        t.save()
+        t.scale(s / PX, s / PX)
+        t.translate(-crop.x * PX, -crop.y * PX)
+        drawSimpleMap(t, s)
+        t.restore()
+      }
+      t.fillStyle = '#020003'
+      t.fillRect(0, 0, c.width, c.height)
+      if (mode === 'simple') simple()
+      else if (mode === 'immersive') immersive()
+      else {
+        // Automático: mitad y mitad
+        t.save()
+        t.beginPath()
+        t.rect(0, 0, c.width / 2, c.height)
+        t.clip()
+        simple()
+        t.restore()
+        t.save()
+        t.beginPath()
+        t.rect(c.width / 2, 0, c.width / 2, c.height)
+        t.clip()
+        immersive()
+        t.restore()
+        t.fillStyle = '#ffffff'
+        t.fillRect(c.width / 2 - 1, 0, 2, c.height)
+      }
+    }
+  }
+
+  // Clic = caminar hasta ahí · arrastrar = recorrer el mapa · rueda o pellizco = zoom
+  let drag: {id: number; x: number; y: number; cx: number; cy: number; moved: boolean} | null = null
+  canvas.addEventListener('pointerdown', e => {
+    if (e.button !== 0) return
+    drag = {id: e.pointerId, x: e.clientX, y: e.clientY, cx, cy, moved: false}
+    canvas.setPointerCapture(e.pointerId)
+  })
+  canvas.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return
+    const dx = e.clientX - drag.x
+    const dy = e.clientY - drag.y
+    if (!drag.moved) {
+      if (Math.hypot(dx, dy) < 6) return
+      drag.moved = true
+      setFollow(false)
+      canvas.classList.add('dragging')
+    }
+    cx = drag.cx - dx / zoom
+    cy = drag.cy - dy / zoom
+  })
+  const endDrag = (e: PointerEvent) => {
+    if (!drag || e.pointerId !== drag.id) return
+    if (!drag.moved && e.type === 'pointerup') {
+      const r = canvas.getBoundingClientRect()
+      target = screenToWorld(e.clientX - r.left, e.clientY - r.top)
+    }
+    drag = null
+    canvas.classList.remove('dragging')
+  }
+  canvas.addEventListener('pointerup', endDrag)
+  canvas.addEventListener('pointercancel', endDrag)
+  canvas.addEventListener(
+    'wheel',
+    e => {
+      e.preventDefault()
+      const r = canvas.getBoundingClientRect()
+      const dy = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY
+      // pellizco del trackpad = ctrlKey con pasos chicos; ruedita del mouse = pasos de ~100
+      setZoom(zoomRel * Math.exp(-dy * (e.ctrlKey ? 0.01 : 0.0015)), {sx: e.clientX - r.left, sy: e.clientY - r.top})
+    },
+    {passive: false}
+  )
+  // Safari no manda el pellizco como rueda, sino como "gesture"
+  type Gesture = Event & {scale: number; clientX: number; clientY: number}
+  let gestureBase = 1
+  canvas.addEventListener('gesturestart', e => {
+    e.preventDefault()
+    gestureBase = zoomRel
+  })
+  canvas.addEventListener('gesturechange', e => {
+    e.preventDefault()
+    const g = e as Gesture
+    const r = canvas.getBoundingClientRect()
+    setZoom(gestureBase * g.scale, {sx: g.clientX - r.left, sy: g.clientY - r.top})
+  })
+
   // ── bucle ──
   const SPEED = 230
   let lastT = performance.now()
   let lastSlow = 0
+  const lastPos = {x: pos.x, y: pos.y}
 
   function step(now: number) {
     const dt = Math.min(0.05, (now - lastT) / 1000)
@@ -640,6 +846,13 @@ function start(me: Person, key: string) {
       }
     }
 
+    // si el avatar se movió (caminando, con "ir a" o al escritorio), la cámara lo vuelve a seguir
+    if (pos.x !== lastPos.x || pos.y !== lastPos.y) {
+      lastPos.x = pos.x
+      lastPos.y = pos.y
+      setFollow(true)
+    }
+
     const z = zoneAt(pos.x, pos.y)
     const zoneChanged = z !== currentZone
     if (zoneChanged) currentZone = z
@@ -675,7 +888,7 @@ function start(me: Person, key: string) {
       call.tick()
     }
 
-    updateCamera()
+    updateCamera(dt)
     draw(now)
     requestAnimationFrame(step)
   }
@@ -740,7 +953,11 @@ function start(me: Person, key: string) {
     ctx.scale(zoom, zoom)
     ctx.translate(-camX, -camY)
 
-    drawScene()
+    simpleView = isSimple()
+    plateK = Math.max(1, UI_MIN / zoom)
+    uiK = simpleView ? plateK : 1
+    if (simpleView) drawSimpleMap(ctx, baseArt * zoomNow)
+    else drawScene()
 
     // ocupación de cada escritorio y quién está conectado
     const occupancy = new Map<number, number>()
@@ -776,7 +993,7 @@ function start(me: Person, key: string) {
     for (const a of all) drawAvatar(a.x, a.y, a.person, a.self, a.moving, now, a.status, a.dir)
     for (const a of all) {
       const b = a.person && bubbles.get(a.person.id)
-      if (b && b.until > now) drawBubble(a.x, a.y, b.text)
+      if (b && b.until > now) scaled(uiK, a.x, a.y, () => drawBubble(a.x, a.y, b.text))
       else if (b && a.person) bubbles.delete(a.person.id)
       const r = a.person && reactions.get(a.person.id)
       if (r) {
@@ -787,7 +1004,7 @@ function start(me: Person, key: string) {
           ctx.globalAlpha = age < 2000 ? 1 : 1 - (age - 2000) / 600
           ctx.font = '30px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
           ctx.textAlign = 'center'
-          ctx.fillText(r.emoji, a.x, a.y - (assets ? 126 : 58) - age / 45)
+          ctx.fillText(r.emoji, a.x, a.y - (assets && !simpleView ? 126 : 58 * uiK) - age / 45)
           ctx.restore()
         }
       }
@@ -984,6 +1201,9 @@ function start(me: Person, key: string) {
   }
 
   function drawRoomPlate(title: string, sub: string, cx: number, cy: number, live: boolean) {
+    scaled(plateK, cx, cy, () => drawRoomPlateAt(title, sub, cx, cy, live))
+  }
+  function drawRoomPlateAt(title: string, sub: string, cx: number, cy: number, live: boolean) {
     ctx.textAlign = 'center'
     ctx.font = `700 13px ${SANS}`
     spaced(-0.2)
@@ -1012,6 +1232,10 @@ function start(me: Person, key: string) {
 
   /** Cartel con nombre y cargo (dinámico, sale de la configuración). */
   function drawPlate(n: number) {
+    const d = deskByNum(n)
+    scaled(plateK, d.plate.x, d.plate.y, () => drawPlateAt(n))
+  }
+  function drawPlateAt(n: number) {
     const d = deskByNum(n)
     const owner = deskOwner(n)
     const name = owner ? owner.name.toUpperCase() : 'LIBRE'
@@ -1055,7 +1279,7 @@ function start(me: Person, key: string) {
     dir: Dir
   ) {
     const sheet = p && assets?.characters[p.sprite]
-    if (!sheet) return drawAvatarCircle(x, y, p, self, mov, now, st)
+    if (!sheet || simpleView) return scaled(uiK, x, y, () => drawAvatarCircle(x, y, p, self, mov, now, st))
     // pies en (x, y + 12); el sprite de 16×32 se escala igual que el decorado (×PX)
     const feet = y + 12
     const w = FRAME.w * PX
@@ -1181,7 +1405,7 @@ function start(me: Person, key: string) {
     const w = Math.min(260, ctx.measureText(t).width + 22)
     const h = 28
     const bx = x - w / 2
-    const by = y - (assets ? 140 : 86)
+    const by = y - (assets && !simpleView ? 140 : 86)
     ctx.fillStyle = '#ffffff'
     roundRect(bx, by, w, h, 10)
     ctx.fill()
@@ -1197,6 +1421,17 @@ function start(me: Person, key: string) {
     ctx.rect(bx + 8, by, w - 16, h)
     ctx.clip()
     ctx.fillText(t, x, by + 18.5)
+    ctx.restore()
+  }
+
+  /** Dibuja `fn` agrandado `k` veces alrededor de (x, y). */
+  function scaled(k: number, x: number, y: number, fn: () => void) {
+    if (k === 1) return fn()
+    ctx.save()
+    ctx.translate(x, y)
+    ctx.scale(k, k)
+    ctx.translate(-x, -y)
+    fn()
     ctx.restore()
   }
 

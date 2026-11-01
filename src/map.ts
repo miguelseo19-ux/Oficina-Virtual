@@ -232,7 +232,8 @@ export const SHELVES: (PRect | null)[] = DESKS.map(d =>
   d.top ? null : {x: d.cell.x + d.cell.w - 18, y: d.cell.y + 2, w: 14, h: 8}
 )
 
-const solidsP: PRect[] = [
+/** Paredes (arte): muros exteriores, pared del ala, divisor de salas, frentes vidriados y tabiques. */
+export const WALLS_ART: PRect[] = [
   {x: 0, y: 0, w: ART.w, h: L.wallTop}, // pared superior
   {x: 0, y: L.wallBottom, w: ART.w, h: ART.h - L.wallBottom}, // pared inferior
   {x: 0, y: 0, w: L.side, h: ART.h},
@@ -240,6 +241,13 @@ const solidsP: PRect[] = [
   ...vWallWithDoors(L.mainRight, L.wingX - L.mainRight, 0, ART.h, [WING.doorJuntas, WING.doorSocial]),
   {x: WING.divider.x, y: WING.divider.y, w: WING.dividerDoor.x - WING.divider.x, h: WING.divider.h},
   {x: WING.dividerDoor.x + WING.dividerDoor.w, y: WING.divider.y, w: WING.divider.x + WING.divider.w - WING.dividerDoor.x - WING.dividerDoor.w, h: WING.divider.h},
+  ...wallsWithDoors(L.topFront.y, L.topFront.h, topDoors),
+  ...wallsWithDoors(L.botFront.y, L.botFront.h, botDoors),
+  ...partitions
+]
+
+const solidsP: PRect[] = [
+  ...WALLS_ART,
   WING.juntas.table,
   WING.juntas.board,
   ...WING.juntas.plants,
@@ -250,9 +258,6 @@ const solidsP: PRect[] = [
   WING.social.kitchen,
   WING.social.fridge,
   ...WING.social.plants,
-  ...wallsWithDoors(L.topFront.y, L.topFront.h, topDoors),
-  ...wallsWithDoors(L.botFront.y, L.botFront.h, botDoors),
-  ...partitions,
   ...DESKS.map(d => d.tableP),
   ...CUBE_PLANTS,
   ...(SHELVES.filter(Boolean) as PRect[]),

@@ -9,8 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="./assets/index-BXYOVuqA.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-Bgc4SNGP.css">
+    <script type="module" crossorigin src="./assets/index-BSNpEjKX.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BxLdiFKp.css">
   </head>
   <body>
     <!-- Login -->
@@ -96,6 +96,10 @@
             <dt><kbd>B</kbd></dt><dd>Ocupado ↔ Disponible</dd>
             <dt><kbd>E</kbd></dt><dd>Equipo</dd>
             <dt><kbd>1</kbd>…<kbd>6</kbd></dt><dd>Reacciones 👋 👍 ❤️ 😂 🎉 ✋</dd>
+            <dt><kbd>+</kbd> <kbd>−</kbd> / rueda o pellizco</dt><dd>Acercar / alejar</dd>
+            <dt>Arrastrar el mapa</dt><dd>Recorrer la oficina</dd>
+            <dt><kbd>G</kbd></dt><dd>Ver toda la oficina</dd>
+            <dt><kbd>0</kbd></dt><dd>Volver a la vista normal (sigue a tu personaje)</dd>
             <dt><kbd>?</kbd></dt><dd>Esta ayuda</dd>
             <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles</dd>
           </dl>
@@ -156,6 +160,24 @@
             <button id="btn-nearby" title="Chat cercano"><i data-icon="nearby"></i></button>
             <span class="sep"></span>
             <button id="btn-home" title="Volver a mi escritorio (H)"><i data-icon="home"></i></button>
+          </div>
+        </div>
+
+        <!-- Controles del mapa (abajo a la derecha) -->
+        <div id="map-ctrl">
+          <div id="view-menu" class="menu" hidden>
+            <span class="eyebrow">Vista del mapa</span>
+            <button data-mode="simple"><canvas class="thumb" width="112" height="112"></canvas><span><b>Simplificado</b><small>Plano y personas</small></span></button>
+            <button data-mode="immersive"><canvas class="thumb" width="112" height="112"></canvas><span><b>Inmersivo</b><small>Pixel art y personajes</small></span></button>
+            <button data-mode="auto"><canvas class="thumb" width="112" height="112"></canvas><span><b>Automático</b><small>Simplificado al alejarte</small></span></button>
+          </div>
+          <button id="btn-desk" class="mc-solo" data-tip="Ir a mi escritorio · H"><i data-icon="desk"></i></button>
+          <button id="btn-locate" class="mc-solo" data-tip="Seguir a mi personaje · 0"><i data-icon="locate"></i></button>
+          <div class="mc-group">
+            <button id="btn-zoom-in" data-tip="Acercar · +"><i data-icon="zoom-in"></i></button>
+            <button id="btn-zoom-out" data-tip="Alejar · −"><i data-icon="zoom-out"></i></button>
+            <button id="btn-overview" data-tip="Ver toda la oficina · G"><i data-icon="office"></i></button>
+            <button id="btn-view" data-tip="Modo de vista"><i data-icon="more"></i></button>
           </div>
         </div>
       </div>
