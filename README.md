@@ -12,6 +12,9 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
   notificación ("Ir a mi escritorio").
 - Botones para silenciar micrófono, apagar cámara y compartir pantalla.
 - El video de quien está hablando se resalta en verde.
+- Botón ⚙️ en la llamada para elegir **cámara, micrófono y parlante/auriculares**
+  (se puede cambiar en plena conversación y queda guardado para la próxima vez;
+  elegir parlante funciona en Chrome y Edge).
 - **Estado**: 🟢 Disponible, 🔴 Ocupado (no molestar: no entrás ni recibís
   llamadas y no suenan avisos) o 🟡 Ausente. Después de 10 minutos sin tocar la
   oficina pasás a "Ausente" solo, y volvés a "Disponible" al mover el mouse.

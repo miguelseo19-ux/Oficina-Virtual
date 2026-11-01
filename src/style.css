@@ -187,6 +187,12 @@ button:hover { filter: brightness(1.15); }
 .tile.waiting::after {
   content: 'Conectando…'; position: absolute; top: 6px; right: 8px; font-size: 11px; color: var(--muted);
 }
+#devices { display: grid; gap: 8px; background: var(--panel-2); padding: 10px; border-radius: 10px; }
+#devices label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+#devices select {
+  font: inherit; font-size: 13px; color: var(--text); background: var(--bg);
+  border: 1px solid #454b5a; border-radius: 8px; padding: 6px 8px; min-width: 0; width: 100%;
+}
 #call-notice { margin: 0; font-size: 12px; color: #ffcf70; }
 #call-notice:empty { display: none; }
 #call footer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

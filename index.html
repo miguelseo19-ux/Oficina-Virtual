@@ -75,11 +75,17 @@
           <strong id="call-title"></strong>
         </header>
         <div id="tiles"></div>
+        <div id="devices" hidden>
+          <label>📷 Cámara <select id="sel-cam"></select></label>
+          <label>🎙️ Micrófono <select id="sel-mic"></select></label>
+          <label id="spk-row">🔊 Parlante / auriculares <select id="sel-spk"></select></label>
+        </div>
         <p id="call-notice"></p>
         <footer>
           <button id="btn-mic" title="Silenciar micrófono">🎙️</button>
           <button id="btn-cam" title="Apagar cámara">📷</button>
           <button id="btn-screen" title="Compartir pantalla">🖥️</button>
+          <button id="btn-devices" title="Elegir cámara, micrófono y parlante">⚙️</button>
           <span class="muted small">Alejate de la alfombra para cortar</span>
         </footer>
       </section>

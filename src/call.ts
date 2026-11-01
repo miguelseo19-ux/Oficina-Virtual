@@ -1,6 +1,27 @@
 import {initials, personById} from './config'
 import type {Net, RemotePlayer, Status} from './net'
 
+const LS_CAM = 'ov.dev.cam'
+const LS_MIC = 'ov.dev.mic'
+const LS_SPK = 'ov.dev.spk'
+function pref(k: string) {
+  try {
+    return localStorage.getItem(k) || ''
+  } catch {
+    return ''
+  }
+}
+function savePref(k: string, v: string) {
+  try {
+    localStorage.setItem(k, v)
+  } catch {
+    /* ignore */
+  }
+}
+const AUDIO_BASE = {echoCancellation: true, noiseSuppression: true}
+const VIDEO_BASE = {width: {ideal: 640}, height: {ideal: 360}, frameRate: {ideal: 24}}
+const canPickSpeaker = 'setSinkId' in HTMLMediaElement.prototype
+
 /**
  * Videollamada por proximidad.
  * Todos los que están parados sobre la alfombra del mismo escritorio
@@ -25,6 +46,13 @@ export class Call {
   private btnCam = document.getElementById('btn-cam') as HTMLButtonElement
   private btnScreen = document.getElementById('btn-screen') as HTMLButtonElement
   private notice = document.getElementById('call-notice')!
+  private devPanel = document.getElementById('devices')!
+  private selCam = document.getElementById('sel-cam') as HTMLSelectElement
+  private selMic = document.getElementById('sel-mic') as HTMLSelectElement
+  private selSpk = document.getElementById('sel-spk') as HTMLSelectElement
+  private camId = pref(LS_CAM)
+  private micId = pref(LS_MIC)
+  private spkId = pref(LS_SPK)
 
   private analysers = new Map<string, {stream: MediaStream; an: AnalyserNode; src: MediaStreamAudioSourceNode}>()
   private audioCtx: AudioContext | null = null
@@ -41,6 +69,139 @@ export class Call {
     this.btnMic.onclick = () => this.toggleMic()
     this.btnCam.onclick = () => this.toggleCam()
     this.btnScreen.onclick = () => void this.toggleScreen()
+    ;(document.getElementById('btn-devices') as HTMLButtonElement).onclick = () => {
+      this.devPanel.hidden = !this.devPanel.hidden
+      if (!this.devPanel.hidden) void this.fillDevices()
+    }
+    this.selCam.onchange = () => void this.switchCam(this.selCam.value)
+    this.selMic.onchange = () => void this.switchMic(this.selMic.value)
+    this.selSpk.onchange = () => this.setSpeaker(this.selSpk.value)
+    if (!canPickSpeaker) (document.getElementById('spk-row') as HTMLElement).hidden = true
+    navigator.mediaDevices?.addEventListener?.('devicechange', () => {
+      if (!this.devPanel.hidden) void this.fillDevices()
+    })
+  }
+
+  // ── elegir cámara / micrófono / parlante ───────────────────
+
+  private async fillDevices() {
+    let devices: MediaDeviceInfo[] = []
+    try {
+      devices = await navigator.mediaDevices.enumerateDevices()
+    } catch {
+      return
+    }
+    const fill = (sel: HTMLSelectElement, kind: MediaDeviceKind, current: string, fallback: string) => {
+      const list = devices.filter(d => d.kind === kind && d.deviceId)
+      sel.replaceChildren(
+        ...list.map((d, i) => {
+          const o = document.createElement('option')
+          o.value = d.deviceId
+          o.textContent = d.label || `${fallback} ${i + 1}`
+          return o
+        })
+      )
+      if (!list.length) {
+        const o = document.createElement('option')
+        o.textContent = `No se encontró ${fallback.toLowerCase()}`
+        o.value = ''
+        sel.appendChild(o)
+      }
+      if (current && list.some(d => d.deviceId === current)) sel.value = current
+    }
+    const curCam = this.camTrack?.getSettings().deviceId || this.camId
+    const curMic = this.local?.getAudioTracks()[0]?.getSettings().deviceId || this.micId
+    fill(this.selCam, 'videoinput', curCam, 'Cámara')
+    fill(this.selMic, 'audioinput', curMic, 'Micrófono')
+    fill(this.selSpk, 'audiooutput', this.spkId, 'Parlante')
+  }
+
+  private async switchCam(id: string) {
+    if (!id) return
+    this.camId = id
+    savePref(LS_CAM, id)
+    if (!this.local) return
+    let track: MediaStreamTrack
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({video: {...VIDEO_BASE, deviceId: {exact: id}}})
+      track = s.getVideoTracks()[0]
+    } catch {
+      this.notice.textContent = 'No se pudo usar esa cámara (¿la está usando otra app?).'
+      return
+    }
+    if (!this.local) return track.stop()
+    this.notice.textContent = ''
+    track.enabled = this.camOn
+    const old = this.camTrack
+    this.camTrack = track
+    const targets = [...this.sentTo]
+    if (this.screenTrack) {
+      // compartiendo pantalla: la nueva cámara se usa al dejar de compartir
+      old?.stop()
+    } else if (old) {
+      this.local.removeTrack(old)
+      this.local.addTrack(track)
+      if (targets.length) await this.net.room.replaceTrack(old, track, {target: targets})
+      old.stop()
+    } else {
+      this.local.addTrack(track)
+      if (targets.length) this.net.room.addTrack(track, this.local, {target: targets})
+    }
+    this.reconcile()
+    this.refreshSelfTile()
+  }
+
+  private async switchMic(id: string) {
+    if (!id) return
+    this.micId = id
+    savePref(LS_MIC, id)
+    if (!this.local) return
+    let track: MediaStreamTrack
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({audio: {...AUDIO_BASE, deviceId: {exact: id}}})
+      track = s.getAudioTracks()[0]
+    } catch {
+      this.notice.textContent = 'No se pudo usar ese micrófono.'
+      return
+    }
+    if (!this.local) return track.stop()
+    this.notice.textContent = ''
+    track.enabled = this.micOn
+    const old = this.local.getAudioTracks()[0]
+    const targets = [...this.sentTo]
+    if (old) {
+      this.local.removeTrack(old)
+      this.local.addTrack(track)
+      if (targets.length) await this.net.room.replaceTrack(old, track, {target: targets})
+      old.stop()
+    } else {
+      this.local.addTrack(track)
+      if (targets.length) this.net.room.addTrack(track, this.local, {target: targets})
+    }
+    this.refreshSelfTile()
+  }
+
+  private setSpeaker(id: string) {
+    this.spkId = id
+    savePref(LS_SPK, id)
+    for (const v of this.tiles.querySelectorAll<HTMLVideoElement>('.tile:not(.self) video')) this.applySink(v)
+  }
+
+  private applySink(v: HTMLVideoElement) {
+    if (!canPickSpeaker || !this.spkId) return
+    const el = v as HTMLVideoElement & {setSinkId: (id: string) => Promise<void>; sinkId?: string}
+    if (el.sinkId !== this.spkId) void el.setSinkId(this.spkId).catch(() => {})
+  }
+
+  /** Fuerza a la vista propia a tomar las pistas nuevas (y al indicador de voz). */
+  private refreshSelfTile() {
+    const v = this.tiles.querySelector<HTMLVideoElement>('.tile.self video')
+    if (v && this.local) {
+      v.srcObject = null
+      v.srcObject = this.local
+      void v.play().catch(() => {})
+    }
+    this.dropAnalyser('self')
   }
 
   /** ¿Los demás me ven? (cámara encendida o compartiendo pantalla) */
@@ -66,21 +227,25 @@ export class Call {
   private async ensureLocal() {
     if (this.local || this.acquiring) return this.acquiring ?? undefined
     this.acquiring = (async () => {
-      let stream: MediaStream | null = null
       this.notice.textContent = ''
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          audio: {echoCancellation: true, noiseSuppression: true},
-          video: {width: {ideal: 640}, height: {ideal: 360}, frameRate: {ideal: 24}}
-        })
-      } catch {
+      const tryGet = async (c: MediaStreamConstraints) => {
         try {
-          stream = await navigator.mediaDevices.getUserMedia({audio: true})
-          this.notice.textContent = 'Sin cámara: solo audio.'
+          return await navigator.mediaDevices.getUserMedia(c)
         } catch {
-          this.notice.textContent =
-            'No hay permiso de micrófono/cámara. Habilitalo en el candado de la barra de direcciones.'
+          return null
         }
+      }
+      // 1) con la cámara/micrófono elegidos, 2) predeterminados, 3) solo audio
+      let stream = await tryGet({
+        audio: {...AUDIO_BASE, ...(this.micId ? {deviceId: {exact: this.micId}} : {})},
+        video: {...VIDEO_BASE, ...(this.camId ? {deviceId: {exact: this.camId}} : {})}
+      })
+      if (!stream && (this.camId || this.micId)) stream = await tryGet({audio: AUDIO_BASE, video: VIDEO_BASE})
+      if (!stream) {
+        stream = await tryGet({audio: AUDIO_BASE})
+        this.notice.textContent = stream
+          ? 'Sin cámara: solo audio.'
+          : 'No hay permiso de micrófono/cámara. Habilitalo en el candado de la barra de direcciones.'
       }
       this.acquiring = null
       if (this.zone === null || this.releaseTimer !== null) {
@@ -197,6 +362,7 @@ export class Call {
     }
     this.releaseMedia()
     this.panel.hidden = true
+    this.devPanel.hidden = true
     this.tiles.replaceChildren()
     for (const k of [...this.analysers.keys()]) this.dropAnalyser(k)
   }
@@ -382,6 +548,7 @@ export class Call {
         video.srcObject = w.stream
         if (w.stream) void video.play().catch(() => {})
       }
+      if (!w.self) this.applySink(video)
       const hasVideo = w.cam && !!w.stream?.getVideoTracks().some(t => t.readyState === 'live')
       tile.classList.toggle('novideo', !hasVideo)
       tile.classList.toggle('waiting', !w.self && !w.stream)
