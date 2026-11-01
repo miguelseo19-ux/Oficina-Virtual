@@ -422,14 +422,14 @@ export class Call {
 
   // ── controles ──────────────────────────────────────────────
 
-  private toggleMic() {
+  toggleMic() {
     this.micOn = !this.micOn
     this.local?.getAudioTracks().forEach(t => (t.enabled = this.micOn))
     this.btnMic.classList.toggle('off', !this.micOn)
     this.btnMic.title = this.micOn ? 'Silenciar micrófono' : 'Activar micrófono'
   }
 
-  private toggleCam() {
+  toggleCam() {
     this.camOn = !this.camOn
     if (this.camTrack) this.camTrack.enabled = this.camOn
     this.btnCam.classList.toggle('off', !this.camOn)

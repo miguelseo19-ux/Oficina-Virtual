@@ -18,6 +18,8 @@ interface Hooks {
   nearbyPeers: () => string[]
   onNearbyMessage: (fromPerson: string, text: string) => void
   onDirectMessage: (from: Person, text: string, open: () => void) => void
+  /** Comandos que empiezan con "/" (no se envían como mensaje). */
+  onCommand: (text: string) => void
 }
 
 export class Chat {
@@ -114,7 +116,15 @@ export class Chat {
     const text = this.input.value.trim()
     if (!text) return
     this.input.value = ''
-    const ch = this.active
+    if (text.startsWith('/')) {
+      this.hooks.onCommand(text)
+      return
+    }
+    this.sendTo(this.active, text)
+  }
+
+  /** Envía un mensaje a un canal ('general', 'nearby' o 'dm:<id>'). */
+  sendTo(ch: Channel, text: string) {
     const isDM = ch.startsWith('dm:')
     const to = isDM ? ch.slice(3) : null
     const m: ChatMsg = {
@@ -131,7 +141,7 @@ export class Chat {
       this.net.sendChat(m, this.hooks.nearbyPeers())
       this.hooks.onNearbyMessage(this.me.id, text)
     } else if (to) this.net.sendChat(m, this.net.peersOf(to))
-    this.renderLog()
+    if (this.isOpen && this.active === ch) this.renderLog()
     this.renderChannels()
   }
 

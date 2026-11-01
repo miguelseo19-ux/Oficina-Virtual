@@ -168,8 +168,126 @@ function start(me: Person, key: string) {
       if (status !== 'busy') beep(660)
       toast(`💬 ${from.name}: ${text.length > 80 ? text.slice(0, 80) + '…' : text}`, [{label: 'Responder', fn: open}])
       notify(`💬 ${from.name}`, text, open)
-    }
+    },
+    onCommand: text => runCommand(text)
   })
+
+  // ── paneles (equipo / atajos) ──
+  const popovers = ['team', 'shortcuts'] as const
+  function togglePanel(id: (typeof popovers)[number], force?: boolean) {
+    const el = $(id)
+    const show = force ?? el.hidden
+    for (const other of popovers) $(other).hidden = true
+    el.hidden = !show
+    $('btn-team').classList.toggle('on', !$('team').hidden)
+    $('btn-shortcuts').classList.toggle('on', !$('shortcuts').hidden)
+    if (show) chat.close()
+  }
+  function closePanels() {
+    for (const id of popovers) $(id).hidden = true
+    $('btn-team').classList.remove('on')
+    $('btn-shortcuts').classList.remove('on')
+  }
+  $('btn-team').onclick = () => togglePanel('team')
+  $('btn-shortcuts').onclick = () => togglePanel('shortcuts')
+  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-close]')) {
+    b.onclick = () => closePanels()
+  }
+  $('btn-chat').addEventListener('click', () => closePanels())
+
+  function setManualStatus(st: Status) {
+    manualStatus = st
+    statusSel.value = st
+    lsSet(LS_STATUS, st)
+    lastActivity = Date.now()
+    refreshStatus()
+  }
+
+  // ── comandos del chat ("/ir migue", "/ocupado"…) ──
+  const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
+  function findPerson(q: string): Person | undefined {
+    const n = norm(q)
+    if (!n) return undefined
+    const others = PEOPLE.filter(p => p.id !== me.id)
+    return (
+      others.find(p => norm(p.name) === n) ??
+      others.find(p => norm(p.name).split(/\s+/).some(w => w.startsWith(n))) ??
+      others.find(p => norm(p.name).includes(n))
+    )
+  }
+  function runCommand(raw: string) {
+    const [cmdRaw, ...rest] = raw.slice(1).split(/\s+/)
+    const cmd = norm(cmdRaw)
+    const needPerson = (fn: (p: Person) => void) => {
+      const p = findPerson(rest[0] ?? '')
+      if (!p) return toast(rest[0] ? `No encontré a "${rest[0]}"` : 'Falta el nombre. Ej: /ir migue')
+      if (!net.peersOf(p.id).length) return toast(`${p.name} no está conectado`)
+      fn(p)
+    }
+    switch (cmd) {
+      case 'ir':
+      case 'ira':
+        return needPerson(p => {
+          goTo(p.id)
+          chat.close()
+          toast(`📍 Fuiste hasta ${p.name}`)
+        })
+      case 'saludar':
+      case 'hola':
+        return needPerson(p => wave(p.id))
+      case 'msj':
+      case 'mensaje':
+      case 'dm': {
+        const p = findPerson(rest[0] ?? '')
+        const text = rest.slice(1).join(' ').trim()
+        if (!p || !text) return toast('Uso: /msj nombre texto')
+        chat.sendTo(`dm:${p.id}`, text)
+        if (!net.peersOf(p.id).length) toast(`${p.name} no está conectado: no le va a llegar`)
+        else toast(`💬 Enviado a ${p.name}`)
+        return
+      }
+      case 'escritorio':
+      case 'casa':
+      case 'home':
+        goHome()
+        chat.close()
+        return
+      case 'ocupado':
+      case 'busy':
+        setManualStatus('busy')
+        return toast('🔴 Estás ocupado (no molestar)')
+      case 'disponible':
+        setManualStatus('available')
+        return toast('🟢 Estás disponible')
+      case 'ausente':
+        setManualStatus('away')
+        return toast('🟡 Estás ausente')
+      case 'mic':
+        call.toggleMic()
+        return toast(call.micOn ? '🎙️ Micrófono activado' : '🔇 Micrófono silenciado')
+      case 'cam':
+      case 'camara':
+        call.toggleCam()
+        return toast(call.camOn ? '📷 Cámara encendida' : '📷 Cámara apagada')
+      case 'quien':
+      case 'quienes':
+      case 'equipo': {
+        const lines = [...net.players.values()].map(p => {
+          const n = personById(p.person)?.name ?? '?'
+          const where = p.zone ? zoneLabel(p.zone) : 'pasillo'
+          return `${n} (${STATUS_LABEL[p.status]}, ${where})`
+        })
+        return toast(lines.length ? `Conectados: ${lines.join(' · ')}` : 'No hay nadie más conectado')
+      }
+      case 'ayuda':
+      case 'help':
+      case 'comandos':
+        chat.close()
+        return togglePanel('shortcuts', true)
+      default:
+        toast(`Comando desconocido: /${cmdRaw}. Escribí /ayuda`)
+    }
+  }
 
   window.addEventListener('beforeunload', () => net.leave())
 
@@ -186,9 +304,44 @@ function start(me: Person, key: string) {
   }
   const keyName = (e: KeyboardEvent) => (e.key.length === 1 ? e.key.toLowerCase() : e.key)
   window.addEventListener('keydown', e => {
+    // Ctrl/Cmd+Shift+A / V funcionan siempre (como en Gather)
+    if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey) {
+      const k = e.key.toLowerCase()
+      if (k === 'a') {
+        call.toggleMic()
+        e.preventDefault()
+        return
+      }
+      if (k === 'v') {
+        call.toggleCam()
+        e.preventDefault()
+        return
+      }
+    }
+    if (e.key === 'Escape') {
+      closePanels()
+      chat.close()
+      return
+    }
     if ((e.target as HTMLElement).closest('input,select,textarea')) return
+    if (e.ctrlKey || e.metaKey || e.altKey) return
     if (e.key === 'Enter') {
+      closePanels()
       chat.open()
+      e.preventDefault()
+      return
+    }
+    const single = e.key.length === 1 ? e.key.toLowerCase() : ''
+    const shortcuts: Record<string, () => void> = {
+      h: goHome,
+      m: () => call.toggleMic(),
+      v: () => call.toggleCam(),
+      b: () => setManualStatus(manualStatus === 'busy' ? 'available' : 'busy'),
+      e: () => togglePanel('team'),
+      '?': () => togglePanel('shortcuts')
+    }
+    if (shortcuts[single] && !e.repeat) {
+      shortcuts[single]()
       e.preventDefault()
       return
     }
@@ -462,9 +615,10 @@ function start(me: Person, key: string) {
     roundRect(z.x, z.y, z.w, z.h, 18)
     ctx.fillStyle = hexA(color, owner ? 0.16 : 0.1)
     ctx.fill()
-    ctx.lineWidth = people > 0 ? 3 + Math.sin(now / 250) * 1 : 2
+    const talking = people >= 2
+    ctx.lineWidth = talking ? 3 + Math.sin(now / 250) * 1 : people > 0 ? 2.5 : 2
     ctx.setLineDash(people > 0 ? [] : [8, 6])
-    ctx.strokeStyle = hexA(color, people > 0 ? 0.9 : 0.45)
+    ctx.strokeStyle = hexA(color, talking ? 0.95 : people > 0 ? 0.7 : 0.45)
     ctx.stroke()
     ctx.setLineDash([])
 
@@ -503,7 +657,7 @@ function start(me: Person, key: string) {
       ctx.fillStyle = '#5f6470'
       ctx.fillText(sub, z.x + z.w / 2, ly + 16)
     }
-    if (people > 0) {
+    if (people >= 2) {
       ctx.font = '600 11px system-ui, sans-serif'
       ctx.fillStyle = hexA(color, 1)
       ctx.fillText(`● ${people} en llamada`, z.x + z.w / 2, d.top ? z.y + 22 : z.y + z.h - 12)
@@ -631,10 +785,14 @@ function start(me: Person, key: string) {
   function renderNetStatus() {
     const {open, total} = net.relayStatus()
     const peers = net.players.size
-    $('net-status').textContent =
+    const el = $('net-status')
+    el.textContent = open === 0 ? `🔴 Sin red (0/${total})` : `🟢 Red ${open}/${total} · ${peers} ${peers === 1 ? 'conectado' : 'conectados'}`
+    el.title =
       open === 0
-        ? `🔴 Sin conexión a la red (0/${total}). Revisá internet o desactivá bloqueadores.`
-        : `🟢 Red: ${open}/${total} servidores · ${peers} ${peers === 1 ? 'persona conectada' : 'personas conectadas'}`
+        ? 'Sin conexión a la red. Revisá internet o desactivá bloqueadores de anuncios.'
+        : `Conectado a ${open} de ${total} servidores. Ves a ${peers} ${peers === 1 ? 'persona' : 'personas'}.`
+    const online = new Set([...net.players.values()].map(p => p.person))
+    $('team-count').textContent = `${online.size + 1}/${PEOPLE.length}`
   }
 
   // ── lista de presentes ──

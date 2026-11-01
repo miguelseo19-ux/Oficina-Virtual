@@ -31,6 +31,25 @@ entre los navegadores** (WebRTC, cifrado de punta a punta). Para encontrarse,
 los navegadores usan relays públicos de la red Nostr, y ese intercambio va
 cifrado con la **clave de la oficina**.
 
+## Atajos y comandos
+
+Botón **⌨️ Atajos** en la barra de abajo (o tecla `?`).
+
+| Tecla | Acción |
+|---|---|
+| Flechas / WASD | Moverte |
+| Enter | Abrir el chat |
+| H | Ir a mi escritorio |
+| M · Ctrl+Shift+A | Micrófono |
+| V · Ctrl+Shift+V | Cámara |
+| B | Ocupado ↔ Disponible |
+| E | Ver el equipo |
+| Esc | Cerrar paneles |
+
+Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,
+`/escritorio`, `/ocupado`, `/disponible`, `/ausente`, `/mic`, `/cam`,
+`/quien`, `/ayuda`.
+
 ## Cómo usarla
 
 1. Abrir la URL de la oficina (GitHub Pages, ver abajo).

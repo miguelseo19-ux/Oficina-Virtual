@@ -26,29 +26,45 @@
 
     <!-- App -->
     <main id="app" hidden>
-      <aside id="sidebar">
-        <div id="me">
-          <span id="me-avatar" class="avatar"></span>
-          <span id="me-name"></span>
-        </div>
-        <select id="status-select" title="Tu estado">
-          <option value="available">🟢 Disponible</option>
-          <option value="busy">🔴 Ocupado (no molestar)</option>
-          <option value="away">🟡 Ausente</option>
-        </select>
-        <button id="btn-home">🪑 Ir a mi escritorio</button>
-        <button id="btn-chat">💬 Chat <span id="chat-badge" class="badge" hidden></span></button>
-        <h2>Equipo</h2>
-        <ul id="roster"></ul>
-        <div class="spacer"></div>
-        <p id="net-status" class="small muted"></p>
-        <button id="btn-logout" class="link">Salir</button>
-      </aside>
-
       <div id="stage">
         <canvas id="world"></canvas>
-        <div id="help">⬆️⬇️⬅️➡️ o WASD para moverte · clic en el mapa para caminar · alfombra de un escritorio = llamada · Enter = chat</div>
         <div id="toasts"></div>
+
+        <section id="team" class="popover" hidden>
+          <header><strong>👥 Equipo</strong><button class="close" data-close="team" title="Cerrar (Esc)">✕</button></header>
+          <ul id="roster"></ul>
+        </section>
+
+        <section id="shortcuts" class="popover wide" hidden>
+          <header><strong>⌨️ Atajos y comandos</strong><button class="close" data-close="shortcuts" title="Cerrar (Esc)">✕</button></header>
+          <div class="sc-body">
+            <h3>Teclas</h3>
+            <dl>
+              <dt><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Moverte</dd>
+              <dt><kbd>Enter</kbd></dt><dd>Abrir el chat</dd>
+              <dt><kbd>H</kbd></dt><dd>Ir a mi escritorio</dd>
+              <dt><kbd>M</kbd></dt><dd>Silenciar / activar micrófono</dd>
+              <dt><kbd>V</kbd></dt><dd>Apagar / encender cámara</dd>
+              <dt><kbd>B</kbd></dt><dd>Ocupado (no molestar) ↔ Disponible</dd>
+              <dt><kbd>E</kbd></dt><dd>Ver el equipo</dd>
+              <dt><kbd>?</kbd></dt><dd>Ver esta ayuda</dd>
+              <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles</dd>
+            </dl>
+            <p class="muted small">También funcionan <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> (micrófono) y <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (cámara), como en Gather.</p>
+            <h3>Comandos (escribilos en el chat)</h3>
+            <dl>
+              <dt><code>/ir nombre</code></dt><dd>Aparecer al lado de esa persona</dd>
+              <dt><code>/saludar nombre</code></dt><dd>Saludarla 👋 (le suena un aviso)</dd>
+              <dt><code>/msj nombre texto</code></dt><dd>Mensaje privado</dd>
+              <dt><code>/escritorio</code></dt><dd>Ir a tu escritorio</dd>
+              <dt><code>/ocupado</code> · <code>/disponible</code> · <code>/ausente</code></dt><dd>Cambiar tu estado</dd>
+              <dt><code>/mic</code> · <code>/cam</code></dt><dd>Micrófono / cámara</dd>
+              <dt><code>/quien</code></dt><dd>Quién está conectado y dónde</dd>
+              <dt><code>/ayuda</code></dt><dd>Ver esta ayuda</dd>
+            </dl>
+            <p class="muted small">El nombre puede ser solo el primero: <code>/ir migue</code>, <code>/saludar cari</code>, <code>/msj fran hola</code>.</p>
+          </div>
+        </section>
 
         <section id="chat" hidden>
           <header>
@@ -68,6 +84,28 @@
           </div>
         </section>
       </div>
+
+      <nav id="bar">
+        <div id="me">
+          <span id="me-avatar" class="avatar"></span>
+          <span id="me-name"></span>
+          <select id="status-select" title="Tu estado (tecla B)">
+            <option value="available">🟢 Disponible</option>
+            <option value="busy">🔴 Ocupado</option>
+            <option value="away">🟡 Ausente</option>
+          </select>
+        </div>
+        <div class="bar-center">
+          <button id="btn-home" title="Ir a mi escritorio (H)">🪑<span class="lbl"> Mi escritorio</span></button>
+          <button id="btn-team" title="Equipo (E)">👥<span class="lbl"> Equipo</span> <span id="team-count" class="count"></span></button>
+          <button id="btn-chat" title="Chat (Enter)">💬<span class="lbl"> Chat</span> <span id="chat-badge" class="badge" hidden></span></button>
+          <button id="btn-shortcuts" title="Atajos y comandos (?)">⌨️<span class="lbl"> Atajos</span></button>
+        </div>
+        <div class="bar-right">
+          <span id="net-status" class="small muted"></span>
+          <button id="btn-logout" class="link">Salir</button>
+        </div>
+      </nav>
 
       <section id="call" hidden>
         <header>
