@@ -5,7 +5,10 @@
  */
 import {chamfer, dot, ellipse, ellipseOutline, glow, mix, pick, rect, rng, roundOutline, type G} from './pixel'
 
-export const PAL = {
+export type Light = 'day' | 'night'
+
+/** Paleta de noche (la original): ciudad iluminada, piso oscuro, neones con brillo. */
+const NIGHT = {
   // piso
   wood: ['#2c1f19', '#30221b', '#281c16', '#2e211a'],
   woodSeam: '#1c130f',
@@ -52,7 +55,81 @@ export const PAL = {
   metal: '#8f8c9c',
   metalDk: '#55525f',
   paper: '#e8e2d4',
-  neon: ['#b06cff', '#ff6a3d', '#ffb347', '#5ee0ff', '#ff5fa2', '#7dffb0']
+  neon: ['#b06cff', '#ff6a3d', '#ffb347', '#5ee0ff', '#ff5fa2', '#7dffb0'],
+  // colores que antes estaban fijos en cada mueble
+  cubeShade: 'rgba(8,4,14,0.28)', // cubículos un poco más oscuros que el pasillo
+  rugTone: '#1a1218', // las alfombras mezclan su color con este
+  tileA: '#2a2430',
+  tileB: '#241f2a',
+  tileLine: '#1d1922',
+  carpet: ['#221b2b', '#271f31', '#1e1826'],
+  counter: '#2b2230',
+  counterTop: '#4a3a44',
+  counterHi: '#5c4a55',
+  counterPanel: '#251d29',
+  cabinet: '#3a2f35',
+  cabinetDoor: '#33282e',
+  bar: '#2b1f26',
+  shadow: 'rgba(0,0,0,0.45)',
+  neonGlow: 1, // multiplicador del brillo de neones y pantallas
+  stars: '#6a5aa8' // en la paleta de día son nubes
+}
+
+/** Paleta de día: piso de madera clara, paredes crema, cielo celeste, luces apagadas. */
+const DAY: typeof NIGHT = {
+  ...NIGHT,
+  wood: ['#c39a6d', '#caa274', '#bb9265', '#c69e70'],
+  woodSeam: '#a37c55',
+  woodHi: '#d9b78b',
+  wallCap: '#a39889',
+  wallCapHi: '#c2b8aa',
+  wallFace: '#ebe3d6',
+  wallFaceDk: '#d3c8b8',
+  wallDark: '#6b6157',
+  trim: '#8a7f73',
+  glass: '#a9d3e8',
+  glassHi: '#e2f3fb',
+  glassDk: '#86b9d3',
+  sky: ['#6fbcef', '#8fcdf3', '#b5def7'],
+  city: ['#8b9bb0', '#9aa9bc', '#7d8ea5'],
+  cityLit: ['#dcefff', '#c3dcf0', '#f2f9ff', '#b3cbe0'],
+  warm: '#e7a865',
+  lamp: '#f6e2b0',
+  deskTop: '#a87a52',
+  deskGrain: '#986b46',
+  deskEdge: '#76533a',
+  screenOff: '#39425a',
+  chairSeat: '#4b4757',
+  chairBack: '#5d586b',
+  shelf: '#94704f',
+  shelfDk: '#77583e',
+  pot: '#b07a5a',
+  potDk: '#8a5c42',
+  leaf: ['#2f6b3a', '#3f8a4a', '#57a85c', '#7cc56e'],
+  cubeShade: 'rgba(120,80,40,0.07)',
+  rugTone: '#f4ede3',
+  tileA: '#efeae2',
+  tileB: '#e4ddd2',
+  tileLine: '#cfc6b8',
+  carpet: ['#9ba6b8', '#a6b0c1', '#919cae'],
+  counter: '#7c5d48',
+  counterTop: '#ddd5c8',
+  counterHi: '#f2ede5',
+  counterPanel: '#6c503d',
+  cabinet: '#9a8676',
+  cabinetDoor: '#8a7667',
+  bar: '#5e4436',
+  shadow: 'rgba(60,40,20,0.28)',
+  neonGlow: 0.35,
+  stars: '#ffffff'
+}
+
+/** Paleta en uso. `setLight` la cambia antes de armar la escena. */
+export const PAL: typeof NIGHT = {...NIGHT}
+export let LIGHT: Light = 'night'
+export function setLight(light: Light) {
+  LIGHT = light
+  Object.assign(PAL, light === 'day' ? DAY : NIGHT)
 }
 
 // ── Piso de madera tipo parquet ────────────────────────────
@@ -83,8 +160,23 @@ export function cityWindow(g: G, x: number, y: number, w: number, h: number, see
   // cielo en bandas
   const band = Math.ceil(h / 3)
   PAL.sky.forEach((c, i) => rect(g, x, y + i * band, w, band, c))
-  // estrellas
-  for (let i = 0; i < w / 6; i++) dot(g, x + Math.floor(r() * w), y + Math.floor(r() * (h / 2)), '#6a5aa8')
+  // estrellas de noche (de día se calculan igual, para que los edificios salgan idénticos)
+  for (let i = 0; i < w / 6; i++) {
+    const sx = x + Math.floor(r() * w)
+    const sy = y + Math.floor(r() * (h / 2))
+    if (LIGHT === 'night') dot(g, sx, sy, PAL.stars)
+  }
+  // nubes de día
+  if (LIGHT === 'day') {
+    const rc = rng(seed + 991)
+    for (let i = 0; i < Math.max(1, Math.round(w / 34)); i++) {
+      const cw = 4 + Math.floor(rc() * 5)
+      const cx = x + Math.floor(rc() * Math.max(1, w - cw))
+      const cy = y + 1 + Math.floor(rc() * Math.max(1, h / 3))
+      rect(g, cx, cy, cw, 1, PAL.stars)
+      rect(g, cx + 1, cy - 1, Math.max(1, cw - 3), 1, PAL.stars)
+    }
+  }
   // edificios
   let bx = x
   while (bx < x + w) {
@@ -146,7 +238,7 @@ export function hangingPlant(g: G, x: number, y: number, len: number, seed: numb
 // ── Escritorio con dos monitores ───────────────────────────
 export function desk(g: G, x: number, y: number, w: number, h: number, seed: number) {
   const r = rng(seed)
-  rect(g, x + 1, y + h, w - 2, 2, 'rgba(0,0,0,0.45)') // sombra
+  rect(g, x + 1, y + h, w - 2, 2, PAL.shadow) // sombra
   rect(g, x, y, w, h, PAL.deskTop)
   for (let i = 0; i < 4; i++) rect(g, x + 2, y + 3 + i * 3, w - 4, 1, PAL.deskGrain)
   rect(g, x, y, w, 1, mix(PAL.deskTop, '#ffffff', 0.12))
@@ -181,9 +273,9 @@ export function chair(g: G, cx: number, cy: number) {
 
 // ── Alfombras ──────────────────────────────────────────────
 export function rug(g: G, x: number, y: number, w: number, h: number, color: string) {
-  const base = mix(color, '#1a1218', 0.66)
-  const border = mix(color, '#1a1218', 0.38)
-  const pattern = mix(color, '#1a1218', 0.52)
+  const base = mix(color, PAL.rugTone, 0.66)
+  const border = mix(color, PAL.rugTone, 0.38)
+  const pattern = mix(color, PAL.rugTone, 0.52)
   rect(g, x, y, w, h, base)
   roundOutline(g, x, y, w, h, 1, border)
   roundOutline(g, x + 2, y + 2, w - 4, h - 4, 1, pattern)
@@ -199,9 +291,9 @@ export function rug(g: G, x: number, y: number, w: number, h: number, color: str
 }
 
 export function roundRug(g: G, cx: number, cy: number, rx: number, ry: number, color: string) {
-  ellipse(g, cx, cy, rx, ry, mix(color, '#1a1218', 0.5))
-  ellipseOutline(g, cx, cy, rx - 1, ry - 1, mix(color, '#1a1218', 0.2))
-  ellipseOutline(g, cx, cy, rx - 4, ry - 3, mix(color, '#1a1218', 0.35))
+  ellipse(g, cx, cy, rx, ry, mix(color, PAL.rugTone, 0.5))
+  ellipseOutline(g, cx, cy, rx - 1, ry - 1, mix(color, PAL.rugTone, 0.2))
+  ellipseOutline(g, cx, cy, rx - 4, ry - 3, mix(color, PAL.rugTone, 0.35))
 }
 
 // ── Decoración de pared ────────────────────────────────────
@@ -262,12 +354,12 @@ export function neon(g: G, kind: number, cx: number, cy: number, color: string) 
     default: // estrella
       line(0, -4, 0, 4); line(-4, 0, 4, 0); line(-2, -2, 2, 2); line(-2, 2, 2, -2)
   }
-  glow(g, cx, cy, 12, color, 0.35)
+  glow(g, cx, cy, 12, color, 0.35 * PAL.neonGlow)
 }
 
 // ── Muebles del pasillo ────────────────────────────────────
 export function armchair(g: G, x: number, y: number, w: number, h: number) {
-  rect(g, x + 1, y + h, w - 2, 1, 'rgba(0,0,0,0.4)')
+  rect(g, x + 1, y + h, w - 2, 1, PAL.shadow)
   chamfer(g, x, y, w, h, PAL.orangeDk, 2)
   chamfer(g, x + 2, y + 1, w - 4, 4, PAL.orange)
   chamfer(g, x + 2, y + 5, w - 4, h - 7, PAL.orangeHi)
@@ -276,7 +368,7 @@ export function armchair(g: G, x: number, y: number, w: number, h: number) {
 }
 
 export function roundTable(g: G, cx: number, cy: number, rx: number, ry: number) {
-  ellipse(g, cx, cy + 2, rx, ry, 'rgba(0,0,0,0.4)')
+  ellipse(g, cx, cy + 2, rx, ry, PAL.shadow)
   ellipse(g, cx, cy, rx, ry, PAL.deskEdge)
   ellipse(g, cx, cy - 1, rx - 1, ry - 1, PAL.deskTop)
 }
@@ -289,7 +381,7 @@ export function floorLamp(g: G, x: number, y: number) {
 }
 
 export function stool(g: G, cx: number, cy: number, c: string) {
-  ellipse(g, cx, cy + 1, 4, 3, 'rgba(0,0,0,0.4)')
+  ellipse(g, cx, cy + 1, 4, 3, PAL.shadow)
   ellipse(g, cx, cy, 4, 3, mix(c, '#000000', 0.3))
   ellipse(g, cx, cy - 1, 3, 2, c)
 }
@@ -325,13 +417,11 @@ export { glow, rect, dot, ellipse, mix, chamfer }
 // ── Ala derecha: sala de juntas y zona social ──────────────
 /** Piso de baldosas (cocina / zona social). */
 export function tileFloor(g: G, x0: number, y0: number, w: number, h: number) {
-  const a = '#2a2430'
-  const b = '#241f2a'
   for (let y = y0; y < y0 + h; y += 8) {
     for (let x = x0; x < x0 + w; x += 8) {
-      rect(g, x, y, 8, 8, ((x - x0) / 8 + (y - y0) / 8) % 2 ? a : b)
-      rect(g, x, y, 8, 1, '#1d1922')
-      rect(g, x, y, 1, 8, '#1d1922')
+      rect(g, x, y, 8, 8, ((x - x0) / 8 + (y - y0) / 8) % 2 ? PAL.tileA : PAL.tileB)
+      rect(g, x, y, 8, 1, PAL.tileLine)
+      rect(g, x, y, 1, 8, PAL.tileLine)
     }
   }
 }
@@ -339,8 +429,9 @@ export function tileFloor(g: G, x0: number, y0: number, w: number, h: number) {
 /** Alfombra lisa tipo moqueta (sala de juntas). */
 export function carpet(g: G, x0: number, y0: number, w: number, h: number, seed: number) {
   const r = rng(seed)
-  rect(g, x0, y0, w, h, '#221b2b')
-  for (let i = 0; i < (w * h) / 14; i++) dot(g, x0 + Math.floor(r() * w), y0 + Math.floor(r() * h), r() < 0.5 ? '#271f31' : '#1e1826')
+  const [base, light, dark] = PAL.carpet
+  rect(g, x0, y0, w, h, base)
+  for (let i = 0; i < (w * h) / 14; i++) dot(g, x0 + Math.floor(r() * w), y0 + Math.floor(r() * h), r() < 0.5 ? light : dark)
 }
 
 /** Silla de oficina vista desde arriba. */
@@ -355,7 +446,7 @@ export function officeChair(g: G, cx: number, cy: number, facing: 'up' | 'down' 
 
 /** Mesa larga de conferencias con laptops y tazas. */
 export function conferenceTable(g: G, x: number, y: number, w: number, h: number) {
-  chamfer(g, x + 1, y + 3, w, h, 'rgba(0,0,0,0.45)', 6)
+  chamfer(g, x + 1, y + 3, w, h, PAL.shadow, 6)
   chamfer(g, x, y, w, h, PAL.deskEdge, 6)
   chamfer(g, x + 1, y + 1, w - 2, h - 4, PAL.deskTop, 6)
   for (let i = 0; i < 3; i++) rect(g, x + 8, y + 6 + i * 6, w - 16, 1, PAL.deskGrain)
@@ -383,11 +474,11 @@ export function wallTV(g: G, x: number, y: number, w: number, h: number) {
 }
 
 export function kitchenCounter(g: G, x: number, y: number, w: number, h: number) {
-  rect(g, x, y, w, h, '#3a2f35')
+  rect(g, x, y, w, h, PAL.cabinet)
   rect(g, x, y, w, 5, '#cfc6b8') // mesada clara
   rect(g, x, y + 5, w, 1, '#8e8679')
   for (let cx = x + 2; cx < x + w - 6; cx += 14) {
-    rect(g, cx, y + 7, 12, h - 8, '#33282e')
+    rect(g, cx, y + 7, 12, h - 8, PAL.cabinetDoor)
     rect(g, cx + 5, y + 9, 2, 1, PAL.metal)
   }
   // bacha
@@ -414,8 +505,8 @@ export function fridge(g: G, x: number, y: number, w: number, h: number) {
 }
 
 export function barCounter(g: G, x: number, y: number, w: number, h: number) {
-  rect(g, x + 1, y + h, w - 2, 2, 'rgba(0,0,0,0.5)')
-  rect(g, x, y, w, h, '#2b1f26')
+  rect(g, x + 1, y + h, w - 2, 2, PAL.shadow)
+  rect(g, x, y, w, h, PAL.bar)
   rect(g, x, y, w, 4, PAL.deskTop)
   rect(g, x, y, w, 1, mix(PAL.deskTop, '#ffffff', 0.18))
   rect(g, x, y + h - 1, w, 1, PAL.warm)
@@ -447,7 +538,7 @@ export function bottleShelf(g: G, x: number, y: number, w: number, seed: number)
 }
 
 export function poolTable(g: G, x: number, y: number, w: number, h: number) {
-  rect(g, x + 1, y + h, w - 2, 2, 'rgba(0,0,0,0.5)')
+  rect(g, x + 1, y + h, w - 2, 2, PAL.shadow)
   chamfer(g, x, y, w, h, '#4a2a1c', 2)
   rect(g, x + 3, y + 3, w - 6, h - 6, '#1f6b4a')
   rect(g, x + 3, y + 3, w - 6, 1, '#2a8a5f')
@@ -470,11 +561,11 @@ export function arcade(g: G, x: number, y: number, w: number, h: number, color: 
   rect(g, x + 2, y + 11, w - 4, 2, '#2b2935')
   dot(g, x + 3, y + 11, '#e4572e')
   dot(g, x + w - 4, y + 11, '#ffd27a')
-  glow(g, x + w / 2, y + 6, 12, color, 0.35)
+  glow(g, x + w / 2, y + 6, 12, color, 0.35 * PAL.neonGlow)
 }
 
 export function puff(g: G, cx: number, cy: number, c: string) {
-  ellipse(g, cx, cy + 2, 6, 4, 'rgba(0,0,0,0.4)')
+  ellipse(g, cx, cy + 2, 6, 4, PAL.shadow)
   ellipse(g, cx, cy, 6, 5, mix(c, '#000000', 0.25))
   ellipse(g, cx - 1, cy - 1, 4, 3, c)
 }

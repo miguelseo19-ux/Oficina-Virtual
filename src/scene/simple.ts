@@ -1,12 +1,13 @@
 import {deskOwner} from '../config'
 import {CORRIDOR, CUBE_PLANTS, DESKS, L, PX, SHELVES, WALLS_ART, WING, type PRect} from '../map'
+import type {Light} from './sprites'
 
 /**
  * Vista "simplificada": plano liso de la oficina, sin pixel art ni personajes.
  * Sale de la misma geometría que el resto (map.ts) y se dibuja con vectores en cada cuadro,
  * así queda nítido con cualquier zoom. Las personas, carteles y llamadas los dibuja main.ts.
  */
-const K = {
+const NIGHT = {
   floor: '#100c15',
   cell: '#17121d',
   wingFloor: '#130f19',
@@ -18,11 +19,32 @@ const K = {
   hair: 'rgba(255,255,255,0.10)',
   plant: '#2f5140',
   bronze: 'rgba(150,88,47,0.75)',
-  felt: '#1e4033'
+  felt: '#1e4033',
+  board: 'rgba(255,255,255,0.18)',
+  ownerTint: 0.1
 }
+/** De día: plano claro (como un plano de arquitectura), paredes oscuras. */
+const DAY: typeof NIGHT = {
+  floor: '#f1ece4',
+  cell: '#faf7f2',
+  wingFloor: '#ece5db',
+  wall: '#4a4250',
+  wallEdge: 'rgba(0,0,0,0.25)',
+  furn: '#e0d8cd',
+  furnEdge: 'rgba(0,0,0,0.2)',
+  soft: 'rgba(0,0,0,0.035)',
+  hair: 'rgba(0,0,0,0.14)',
+  plant: '#8fc293',
+  bronze: 'rgba(150,88,47,0.85)',
+  felt: '#3f8a63',
+  board: '#ffffff',
+  ownerTint: 0.14
+}
+let K = NIGHT
 
 /** `artPx` = cuántos píxeles de pantalla mide un píxel de arte (para que las líneas midan 1px). */
-export function drawSimpleMap(ctx: CanvasRenderingContext2D, artPx: number) {
+export function drawSimpleMap(ctx: CanvasRenderingContext2D, artPx: number, light: Light = 'night') {
+  K = light === 'day' ? DAY : NIGHT
   const hair = 1 / artPx
   ctx.save()
   ctx.scale(PX, PX) // de acá en adelante, coordenadas en píxeles de arte
@@ -73,7 +95,7 @@ export function drawSimpleMap(ctx: CanvasRenderingContext2D, artPx: number) {
   for (const d of DESKS) {
     const owner = deskOwner(d.num)
     box(d.cell, K.cell, null, 0)
-    if (owner) box(d.cell, hexA(owner.color, 0.1), null, 0)
+    if (owner) box(d.cell, hexA(owner.color, K.ownerTint), null, 0)
     const t = d.tableP
     box(t, K.furn, owner ? hexA(owner.color, 0.55) : K.furnEdge, 2)
     dot(d.chairP.x, d.chairP.y, 4, K.furn, K.furnEdge)
@@ -109,7 +131,7 @@ export function drawSimpleMap(ctx: CanvasRenderingContext2D, artPx: number) {
   }
   box(tb, K.furn, K.bronze, 4)
   box(juntas.tv, '#0b090e', K.bronze, 1)
-  box(juntas.board, 'rgba(255,255,255,0.18)', K.furnEdge, 1)
+  box(juntas.board, K.board, K.furnEdge, 1)
   juntas.plants.forEach(plant)
 
   // zona social

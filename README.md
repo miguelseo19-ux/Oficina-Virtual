@@ -136,6 +136,10 @@ Controles abajo a la derecha, como en Gather:
 - **⋯**: modo de vista. *Simplificado* (plano liso con cuadros y las personas
   como círculos), *Inmersivo* (pixel art con personajes) o *Automático*
   (simplificado al alejarte, inmersivo de cerca). Se recuerda en cada navegador.
+  Abajo, la **luz**: oficina de *Día* (piso claro, cielo celeste, sol por las
+  ventanas), de *Noche* (la original, con luces cálidas y neones) o *Según la
+  hora* (de día de 7 a 19, con la hora de cada compu; es la opción inicial).
+  Tecla `L` para pasar de una a otra. También se recuerda en cada navegador.
 
 Arrastrando el mapa con el mouse recorrés la oficina; en cuanto movés a tu
 personaje, la cámara lo vuelve a seguir.
@@ -152,6 +156,7 @@ Pestaña **⌨️ Atajos** en la barra de la izquierda (o tecla `?`).
 | + / − (o rueda / pellizco) | Acercar / alejar |
 | Arrastrar el mapa | Recorrer la oficina |
 | G | Ver toda la oficina |
+| L | Oficina de día ↔ de noche |
 | 0 | Volver a la vista normal (sigue a tu personaje) |
 | M · Ctrl+Shift+A | Micrófono |
 | V · Ctrl+Shift+V | Cámara |

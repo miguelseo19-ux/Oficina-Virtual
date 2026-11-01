@@ -97,6 +97,7 @@
             <dt><kbd>+</kbd> <kbd>−</kbd> / rueda o pellizco</dt><dd>Acercar / alejar</dd>
             <dt>Arrastrar el mapa</dt><dd>Recorrer la oficina</dd>
             <dt><kbd>G</kbd></dt><dd>Ver toda la oficina</dd>
+            <dt><kbd>L</kbd></dt><dd>Oficina de día ↔ de noche</dd>
             <dt><kbd>0</kbd></dt><dd>Volver a la vista normal (sigue a tu personaje)</dd>
             <dt><kbd>?</kbd></dt><dd>Esta ayuda</dd>
             <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles</dd>
@@ -168,6 +169,12 @@
             <button data-mode="simple"><canvas class="thumb" width="112" height="112"></canvas><span><b>Simplificado</b><small>Plano y personas</small></span></button>
             <button data-mode="immersive"><canvas class="thumb" width="112" height="112"></canvas><span><b>Inmersivo</b><small>Pixel art y personajes</small></span></button>
             <button data-mode="auto"><canvas class="thumb" width="112" height="112"></canvas><span><b>Automático</b><small>Simplificado al alejarte</small></span></button>
+            <span class="eyebrow">Luz · L</span>
+            <div class="seg">
+              <button data-light="day"><i data-icon="sun" data-size="16"></i>Día</button>
+              <button data-light="night"><i data-icon="moon" data-size="16"></i>Noche</button>
+              <button data-light="auto"><i data-icon="clock" data-size="16"></i>Según la hora</button>
+            </div>
           </div>
           <button id="btn-desk" class="mc-solo" data-tip="Ir a mi escritorio · H"><i data-icon="desk"></i></button>
           <button id="btn-locate" class="mc-solo" data-tip="Seguir a mi personaje · 0"><i data-icon="locate"></i></button>

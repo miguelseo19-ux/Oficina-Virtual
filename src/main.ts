@@ -3,6 +3,7 @@ import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
 import {AREAS, ART, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
 import {buildScene} from './scene'
 import {drawSimpleMap} from './scene/simple'
+import type {Light} from './scene/sprites'
 import {BODY_H, DIR_INDEX, FRAME, frameOf, loadAssets, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
@@ -14,6 +15,8 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 const LS_USER = 'ov.user'
 const LS_KEY = 'ov.key'
 const LS_VIEW = 'ov.vista'
+const LS_LIGHT = 'ov.luz'
+const DAY_HOURS = [7, 19] // modo de luz "Según la hora": de día de 7 a 19 (hora de la compu)
 const AWAY_AFTER_MS = 10 * 60 * 1000 // 10 minutos sin actividad → ausente
 const NEAR_RADIUS = 200
 // Charla por cercanía fuera de cubículos y salas (px de mundo; un avatar mide ~48 de ancho).
@@ -492,7 +495,8 @@ function start(me: Person, key: string) {
       '=': () => setZoom(zoomRel * 1.25),
       '-': () => setZoom(zoomRel / 1.25),
       '0': resetView,
-      g: toggleOverview
+      g: toggleOverview,
+      l: () => setLightMode(light === 'day' ? 'night' : 'day')
     }
     REACTIONS.forEach((r, i) => (shortcuts[String(i + 1)] = () => react(r)))
     if (shortcuts[single] && !e.repeat) {
@@ -583,6 +587,17 @@ function start(me: Person, key: string) {
   const VIEW_MODES: ViewMode[] = ['simple', 'immersive', 'auto']
   const VIEW_NAMES: Record<ViewMode, string> = {simple: 'Simplificado', immersive: 'Inmersivo', auto: 'Automático'}
   let viewMode: ViewMode = VIEW_MODES.find(m => m === lsGet(LS_VIEW)) ?? 'auto'
+  // Luz de la oficina: versión de día o de noche (la escena se arma de nuevo al cambiar)
+  type LightMode = Light | 'auto'
+  const LIGHT_MODES: LightMode[] = ['day', 'night', 'auto']
+  const LIGHT_NAMES: Record<LightMode, string> = {day: 'Día', night: 'Noche', auto: 'Según la hora'}
+  let lightMode: LightMode = LIGHT_MODES.find(m => m === lsGet(LS_LIGHT)) ?? 'auto'
+  const lightFor = (m: LightMode): Light => {
+    if (m !== 'auto') return m
+    const h = new Date().getHours()
+    return h >= DAY_HOURS[0] && h < DAY_HOURS[1] ? 'day' : 'night'
+  }
+  let light: Light = lightFor(lightMode)
   let simpleView = false // lo que se está dibujando en este cuadro
   let uiK = 1 // escala extra de personas/globos (vista simplificada muy lejos)
   let plateK = 1 // escala extra de los carteles
@@ -709,6 +724,30 @@ function start(me: Person, key: string) {
       toast(`Vista: ${VIEW_NAMES[viewMode]}`, [], 'office')
     }
   }
+  for (const b of document.querySelectorAll<HTMLButtonElement>('#view-menu button[data-light]')) {
+    b.onclick = () => setLightMode(b.dataset.light as LightMode)
+  }
+  /** Elegir la luz (Día / Noche / Según la hora); se guarda en este navegador. */
+  function setLightMode(m: LightMode) {
+    lightMode = m
+    lsSet(LS_LIGHT, m)
+    applyLight()
+    toast(`Luz: ${LIGHT_NAMES[m]}${m === 'auto' ? ` (ahora ${LIGHT_NAMES[light].toLowerCase()})` : ''}`, [], light === 'day' ? 'sun' : 'moon')
+  }
+  /** Rearma la escena si cambió la luz y actualiza el menú. */
+  function applyLight() {
+    const l = lightFor(lightMode)
+    if (l !== light) {
+      light = l
+      scene = buildScene(assets, light)
+    }
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#view-menu button[data-light]')) {
+      b.classList.toggle('sel', b.dataset.light === lightMode)
+    }
+    if (!$('view-menu').hidden) drawThumbs()
+  }
+  setInterval(() => lightMode === 'auto' && applyLight(), 60_000)
+
   /** Miniaturas del menú de vista, dibujadas con el mapa real (primeros cubículos y el pasillo). */
   function drawThumbs() {
     const crop = {x: 12, y: 22, w: 112, h: 112} // en píxeles de arte
@@ -726,7 +765,7 @@ function start(me: Person, key: string) {
         t.save()
         t.scale(s / PX, s / PX)
         t.translate(-crop.x * PX, -crop.y * PX)
-        drawSimpleMap(t, s)
+        drawSimpleMap(t, s, light)
         t.restore()
       }
       t.fillStyle = '#020003'
@@ -964,7 +1003,7 @@ function start(me: Person, key: string) {
     simpleView = isSimple()
     plateK = Math.max(1, UI_MIN / zoom)
     uiK = simpleView ? plateK : 1
-    if (simpleView) drawSimpleMap(ctx, baseArt * zoomNow)
+    if (simpleView) drawSimpleMap(ctx, baseArt * zoomNow, light)
     else drawScene()
 
     // ocupación de cada escritorio y quién está conectado
@@ -1065,12 +1104,13 @@ function start(me: Person, key: string) {
 
   // Decorado pixel art (estático, se arma una vez) — ver src/scene
   let assets: Assets | null = null
-  let scene = buildScene()
+  let scene = buildScene(null, light)
   void loadAssets().then(a => {
     if (!a) return
     assets = a
-    scene = buildScene(a)
+    scene = buildScene(a, light)
   })
+  applyLight() // marca en el menú la luz elegida
 
   function drawScene() {
     ctx.imageSmoothingEnabled = false
@@ -1164,7 +1204,7 @@ function start(me: Person, key: string) {
       lit.add(a)
       lit.add(b)
     }
-    ctx.globalCompositeOperation = 'lighter'
+    ctx.globalCompositeOperation = light === 'day' ? 'source-over' : 'lighter' // sobre piso claro, 'lighter' no se ve
     for (const d of lit) {
       const fy = d.y + 10
       const g = ctx.createRadialGradient(d.x, fy, 0, d.x, fy, 46)

@@ -46,6 +46,8 @@ const P: Record<string, string> = {
   'zoom-out': '<path d="M5 12h14"/>',
   desk: '<rect x="3.5" y="6.5" width="17" height="3" rx="1"/><path d="M5.5 9.5V19M18.5 9.5V19M12.5 9.5v5.5h6M14.8 12.2h1.6"/>',
   locate: '<path d="M5 5l14.5 6-6.3 2.2L11 19.5 5 5Z"/>',
+  sun: '<circle cx="12" cy="12" r="3.8"/><path d="M12 2.8v2.1M12 19.1v2.1M2.8 12h2.1M19.1 12h2.1M5.5 5.5l1.5 1.5M17 17l1.5 1.5M5.5 18.5 7 17M17 7l1.5-1.5"/>',
+  clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   more: '<circle cx="6" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.3" fill="currentColor" stroke="none"/>'
 }
 

@@ -5,7 +5,9 @@
  *
  * Capas (de abajo hacia arriba):
  *   1. piso            2. paredes y ventanas      3. objetos fijos
- *   4. iluminación cálida + neones
+ *   4. iluminación: de noche, luz cálida + neones; de día, sol por las ventanas
+ * Hay dos versiones de la misma oficina (`Light`): de noche y de día. Cambian la paleta
+ * (sprites.ts → PAL), el cielo de las ventanas y la iluminación; la geometría es la misma.
  * Las capas dinámicas (estado de escritorios, carteles, avatares) se dibujan
  * aparte, en src/main.ts, encima de esta imagen.
  */
@@ -29,6 +31,8 @@ import {
   neon,
   PAL,
   picture,
+  setLight,
+  type Light,
   plant,
   rect,
   roundTable,
@@ -55,9 +59,13 @@ import {roundOutline, type G} from './pixel'
 
 let A: Assets | null = null
 
-/** Arma la escena. Con `assets` usa los sprites de LimeZu; sin ellos, el dibujo por código. */
-export function buildScene(assets: Assets | null = null): HTMLCanvasElement {
+/**
+ * Arma la escena. Con `assets` usa los sprites de LimeZu; sin ellos, el dibujo por código.
+ * `light`: versión de noche (la original) o de día.
+ */
+export function buildScene(assets: Assets | null = null, light: Light = 'night'): HTMLCanvasElement {
   A = assets
+  setLight(light)
   const cv = document.createElement('canvas')
   cv.width = ART.w
   cv.height = ART.h
@@ -70,7 +78,8 @@ export function buildScene(assets: Assets | null = null): HTMLCanvasElement {
   drawFrontWalls(g)
   drawCorridor(g)
   drawWing(g)
-  drawLighting(g)
+  if (light === 'day') drawDaylight(g)
+  else drawLighting(g)
   return cv
 }
 
@@ -79,7 +88,7 @@ function drawFloor(g: G) {
   rect(g, 0, 0, ART.w, ART.h, PAL.wallDark)
   floor(g, L.side, L.wallTop, L.mainRight - L.side, L.wallBottom - L.wallTop, 7)
   // los cubículos un poco más oscuros que el pasillo
-  for (const d of DESKS) rect(g, d.cell.x, d.cell.y, d.cell.w, d.cell.h, 'rgba(8,4,14,0.28)')
+  for (const d of DESKS) rect(g, d.cell.x, d.cell.y, d.cell.w, d.cell.h, PAL.cubeShade)
   // ala derecha: moqueta en la sala de juntas, baldosas en la zona social
   const j = WING.juntas.room
   carpet(g, j.x, j.y, j.w, j.h, 3)
@@ -254,7 +263,7 @@ function drawCorridor(g: G) {
   roundRug(g, ring.x + ring.w / 2, ring.y + ring.h / 2, ring.w / 2, ring.h / 2, '#3c3446')
   roundOutline(g, ring.x + 6, ring.y + 4, ring.w - 12, ring.h - 8, 8, PAL.warm)
   const dk = island.desk
-  rect(g, dk.x + 2, dk.y + dk.h, dk.w - 4, 2, 'rgba(0,0,0,0.5)')
+  rect(g, dk.x + 2, dk.y + dk.h, dk.w - 4, 2, PAL.shadow)
   chamfer(g, dk.x, dk.y, dk.w, dk.h, PAL.deskEdge, 3)
   chamfer(g, dk.x + 1, dk.y + 1, dk.w - 2, dk.h - 5, mix(PAL.deskTop, '#000000', 0.2), 3)
   for (let i = 0; i < 3; i++) rect(g, dk.x + 6, dk.y + 4 + i * 4, dk.w - 12, 1, PAL.deskEdge)
@@ -275,11 +284,11 @@ function drawCorridor(g: G) {
 
   // Barra de café
   const ct = coffee.counter
-  rect(g, ct.x, ct.y + ct.h, ct.w, 2, 'rgba(0,0,0,0.5)')
-  rect(g, ct.x, ct.y, ct.w, ct.h, '#2b2230')
-  rect(g, ct.x, ct.y, ct.w, 5, '#4a3a44')
-  rect(g, ct.x, ct.y, ct.w, 1, '#5c4a55')
-  for (let x = ct.x + 4; x < ct.x + ct.w; x += 12) rect(g, x, ct.y + 7, 8, 8, '#251d29')
+  rect(g, ct.x, ct.y + ct.h, ct.w, 2, PAL.shadow)
+  rect(g, ct.x, ct.y, ct.w, ct.h, PAL.counter)
+  rect(g, ct.x, ct.y, ct.w, 5, PAL.counterTop)
+  rect(g, ct.x, ct.y, ct.w, 1, PAL.counterHi)
+  for (let x = ct.x + 4; x < ct.x + ct.w; x += 12) rect(g, x, ct.y + 7, 8, 8, PAL.counterPanel)
   coffeeMachine(g, ct.x + 3, ct.y - 6)
   for (let i = 0; i < 5; i++) rect(g, ct.x + 16 + i * 4, ct.y + 1, 2, 3, i % 2 ? PAL.paper : PAL.cream)
   rect(g, ct.x + ct.w - 9, ct.y - 3, 5, 6, '#7a5a40')
@@ -294,7 +303,7 @@ function drawCorridor(g: G) {
   rect(g, nx - 2, ny + 4, 4, 1, c)
   rect(g, nx + 3, ny + 1, 1, 2, c)
   for (let i = -2; i <= 1; i += 2) rect(g, nx + i, ny - 3, 1, 2, c)
-  glow(g, nx, ny + 1, 12, c, 0.4)
+  glow(g, nx, ny + 1, 12, c, 0.4 * PAL.neonGlow)
 
   // Sala de reuniones informal
   const mr = meeting.rug
@@ -416,4 +425,41 @@ function drawLighting(g: G) {
     glow(g, x, r.y + 4, 12, PAL.warm, 0.12)
     glow(g, x, r.y + r.h - 4, 12, PAL.warm, 0.12)
   }
+}
+
+// ── 4b. Luz de día ─────────────────────────────────────────
+/** De día: sin tinte violeta ni lámparas; entra sol por las ventanas laterales. */
+function drawDaylight(g: G) {
+  // ventana izquierda → piso del pasillo, en diagonal (el sol viene de arriba a la izquierda)
+  const wy = L.corridor.y + 6
+  const wh = L.corridor.h - 12
+  sunPatch(g, {x: L.side, y: L.corridor.y, w: 90, h: L.corridor.h}, L.side, wy, wh, 1)
+  // ventana derecha del ala → sala de juntas, hacia la izquierda
+  sunPatch(g, WING.juntas.room, L.wingRight - 1, 40, 100, -1)
+  // claridad bajo las ventanas de arriba (fondo de cada cubículo de arriba y de la sala de juntas)
+  for (const d of DESKS.filter(dd => dd.top)) glow(g, d.cell.x + d.cell.w / 2, L.wallTop + 2, 40, '#fff4dc', 0.1)
+  glow(g, WING.juntas.room.x + WING.juntas.room.w / 2, L.wallTop + 2, 70, '#fff4dc', 0.1)
+  // pantalla de la sala de juntas y anillo de la isla: brillo suave
+  const tv = WING.juntas.tv
+  glow(g, tv.x + tv.w / 2, tv.y + tv.h, 30, '#5ee0ff', 0.06)
+}
+
+/**
+ * Mancha de sol que entra por una ventana vertical (en x = `fromX`, de `wy` a `wy + wh`) y cae
+ * sobre el piso en diagonal, cada vez más tenue. `dir` = 1 hacia la derecha, -1 hacia la izquierda.
+ * Se recorta a `area` (para que no atraviese paredes) y deja una raya por cada parante del vidrio.
+ */
+function sunPatch(g: G, area: {x: number; y: number; w: number; h: number}, fromX: number, wy: number, wh: number, dir: 1 | -1) {
+  g.save()
+  g.beginPath()
+  g.rect(area.x, area.y, area.w, area.h)
+  g.clip()
+  const len = 84
+  for (let i = 0; i < len; i++) {
+    const x = fromX + i * dir
+    const a = 0.16 * (1 - i / len)
+    const y0 = wy + Math.round(i * 0.45)
+    for (let y = y0; y < y0 + wh; y += 12) rect(g, x, y, 1, Math.min(11, y0 + wh - y), `rgba(255,244,214,${a.toFixed(3)})`)
+  }
+  g.restore()
 }

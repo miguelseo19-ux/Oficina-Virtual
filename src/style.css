@@ -313,6 +313,13 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
 #view-menu b { display: block; font-size: 15px; font-weight: 600; color: #020003; }
 #view-menu small { display: block; font: 500 9.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(2, 0, 3, 0.5); }
 #view-menu button.sel b { color: #6e3f20; }
+#view-menu .seg { display: flex; gap: 4px; padding: 0 2px 2px; }
+#view-menu .seg button {
+  flex: 1; width: auto; flex-direction: column; justify-content: center; align-items: center; gap: 4px;
+  padding: 8px 4px; font-size: 12px; font-weight: 500; color: rgba(2, 0, 3, 0.7);
+  box-shadow: inset 0 0 0 1px rgba(2, 0, 3, 0.1);
+}
+#view-menu .seg button.sel { color: #6e3f20; box-shadow: inset 0 0 0 2px var(--magenta); font-weight: 600; }
 #world { cursor: default; }
 #world.dragging { cursor: grabbing; }
 
