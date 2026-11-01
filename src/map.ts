@@ -7,7 +7,7 @@ import {DESK_COUNT} from './config'
  * colisiones y las zonas de llamada, así nunca se desalinean.
  */
 export const PX = 3
-export const ART = {w: 488, h: 320} // tamaño del lienzo pixel art
+export const ART = {w: 652, h: 320} // tamaño del lienzo pixel art (oficina + ala derecha)
 export const WORLD = {w: ART.w * PX, h: ART.h * PX}
 
 export interface Rect {
@@ -34,7 +34,10 @@ export const L = {
   wallBottom: 298, // pared inferior (hasta ART.h)
   cubW: 74,
   partition: 4,
-  door: 24 // ancho de la puerta de cada cubículo
+  door: 24, // ancho de la puerta de cada cubículo
+  mainRight: 476, // borde derecho de la oficina principal (pared interna hacia el ala)
+  wingX: 488, // comienzo del ala derecha (sala de juntas + zona social), 1/4 del mapa
+  wingRight: 640 // pared exterior derecha
 }
 
 export interface Desk {
@@ -115,10 +118,82 @@ export const CORRIDOR = {
   },
   meeting: {
     rug: {x: 412, y: C.y + 36, w: 58, h: 52},
-    table: {x: 432, y: C.y + 54, w: 18, h: 16},
-    board: {x: 448, y: C.y + 24, w: 26, h: 13},
-    pendant: {x: 441, y: C.y + 50}
+    table: {x: 418, y: C.y + 54, w: 18, h: 16},
+    pendant: {x: 427, y: C.y + 50}
   }
+}
+
+// ── Ala derecha: sala de juntas (arriba) y zona social (abajo) ─
+const W0 = L.wingX
+const W1 = L.wingRight
+export const WING = {
+  divider: {x: W0, y: 152, w: W1 - W0, h: 14}, // pared entre las dos salas
+  dividerDoor: {x: 600, y: 152, w: 24, h: 14},
+  doorJuntas: {x: L.mainRight, y: 114, w: 12, h: 26}, // desde el pasillo
+  doorSocial: {x: L.mainRight, y: 172, w: 12, h: 26},
+  juntas: {
+    room: {x: W0, y: L.wallTop, w: W1 - W0, h: 152 - L.wallTop},
+    rug: {x: 508, y: 50, w: 112, h: 66},
+    table: {x: 522, y: 66, w: 84, h: 30},
+    tv: {x: 534, y: 7, w: 60, h: 14},
+    board: {x: 610, y: 126, w: 26, h: 13},
+    plants: [
+      {x: 492, y: 26, w: 8, h: 10},
+      {x: 628, y: 26, w: 8, h: 10}
+    ]
+  },
+  social: {
+    room: {x: W0, y: 166, w: W1 - W0, h: L.wallBottom - 166},
+    bar: {x: 500, y: 184, w: 62, h: 12},
+    stools: [508, 522, 536, 550].map(x => ({x, y: 204})),
+    pool: {x: 580, y: 194, w: 48, h: 28},
+    arcades: [
+      {x: 626, y: 232, w: 12, h: 16},
+      {x: 626, y: 252, w: 12, h: 16}
+    ],
+    kitchen: {x: 500, y: 284, w: 104, h: 14}, // mesada contra la pared de abajo
+    fridge: {x: 608, y: 276, w: 16, h: 22},
+    puffs: [
+      {x: 512, y: 238},
+      {x: 532, y: 246},
+      {x: 516, y: 258}
+    ],
+    rug: {x: 498, y: 228, w: 56, h: 44},
+    plants: [
+      {x: 491, y: 270, w: 8, h: 10},
+      {x: 568, y: 170, w: 8, h: 10}
+    ]
+  }
+}
+
+/** Salas con videollamada grupal (además de los 12 escritorios). */
+export interface Room {
+  id: number // > 12 para no chocar con los escritorios
+  name: string
+  zone: Rect // mundo
+  plate: {x: number; y: number}
+}
+export const ROOMS: Room[] = [
+  {
+    id: 100,
+    name: 'Sala de juntas',
+    zone: toWorld(WING.juntas.room),
+    plate: {x: (W0 + (W1 - W0) / 2) * PX, y: 140 * PX}
+  }
+]
+/** Zonas sin llamada, solo para mostrar dónde está cada uno. */
+export const AREAS = [{name: 'Zona social', rect: toWorld(WING.social.room), plate: {x: 538 * PX, y: 220 * PX}}]
+
+/** Pared vertical con huecos de puerta (mundo de arte). */
+function vWallWithDoors(x: number, w: number, y0: number, y1: number, doors: PRect[]): PRect[] {
+  const out: PRect[] = []
+  let y = y0
+  for (const d of doors) {
+    out.push({x, y, w, h: d.y - y})
+    y = d.y + d.h
+  }
+  out.push({x, y, w, h: y1 - y})
+  return out
 }
 
 export const SPAWN = {x: 30 * PX, y: (C.y + C.h / 2) * PX}
@@ -131,7 +206,7 @@ function wallsWithDoors(y: number, h: number, doors: PRect[]): PRect[] {
     out.push({x, y, w: d.x - x, h})
     x = d.x + d.w
   }
-  out.push({x, y, w: ART.w - L.side - x, h})
+  out.push({x, y, w: L.mainRight - x, h})
   return out
 }
 
@@ -161,7 +236,20 @@ const solidsP: PRect[] = [
   {x: 0, y: 0, w: ART.w, h: L.wallTop}, // pared superior
   {x: 0, y: L.wallBottom, w: ART.w, h: ART.h - L.wallBottom}, // pared inferior
   {x: 0, y: 0, w: L.side, h: ART.h},
-  {x: ART.w - L.side, y: 0, w: L.side, h: ART.h},
+  {x: L.wingRight, y: 0, w: ART.w - L.wingRight, h: ART.h},
+  ...vWallWithDoors(L.mainRight, L.wingX - L.mainRight, 0, ART.h, [WING.doorJuntas, WING.doorSocial]),
+  {x: WING.divider.x, y: WING.divider.y, w: WING.dividerDoor.x - WING.divider.x, h: WING.divider.h},
+  {x: WING.dividerDoor.x + WING.dividerDoor.w, y: WING.divider.y, w: WING.divider.x + WING.divider.w - WING.dividerDoor.x - WING.dividerDoor.w, h: WING.divider.h},
+  WING.juntas.table,
+  WING.juntas.board,
+  ...WING.juntas.plants,
+  WING.social.bar,
+  ...WING.social.stools.map(s => ({x: s.x - 4, y: s.y - 3, w: 8, h: 6})),
+  WING.social.pool,
+  ...WING.social.arcades,
+  WING.social.kitchen,
+  WING.social.fridge,
+  ...WING.social.plants,
   ...wallsWithDoors(L.topFront.y, L.topFront.h, topDoors),
   ...wallsWithDoors(L.botFront.y, L.botFront.h, botDoors),
   ...partitions,
@@ -178,9 +266,7 @@ const solidsP: PRect[] = [
   CORRIDOR.coffee.counter,
   {x: CORRIDOR.lounge.shelf.x + CORRIDOR.lounge.shelf.w + 2, y: CORRIDOR.lounge.shelf.y + 2, w: 9, h: 10}, // planta del rincón
   {x: CORRIDOR.lounge.lamp.x - 2, y: CORRIDOR.lounge.lamp.y + 8, w: 5, h: 5}, // lámpara de pie
-  {x: CORRIDOR.meeting.rug.x + CORRIDOR.meeting.rug.w - 8, y: CORRIDOR.meeting.rug.y + CORRIDOR.meeting.rug.h - 6, w: 10, h: 8},
-  CORRIDOR.meeting.table,
-  CORRIDOR.meeting.board
+  CORRIDOR.meeting.table
 ]
 
 export const SOLIDS: Rect[] = solidsP.map(toWorld)
@@ -203,13 +289,23 @@ export function collides(x: number, y: number): boolean {
   return SOLIDS.some(r => overlaps(box, r))
 }
 
-/** Escritorio (cubículo) que contiene el punto, o null. */
+const inside = (x: number, y: number, z: Rect) => x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h
+
+/** Zona de llamada que contiene el punto: escritorio (1..12), sala (ROOMS) o null. */
 export function zoneAt(x: number, y: number): number | null {
-  for (const d of DESKS) {
-    const z = d.zone
-    if (x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) return d.num
-  }
+  for (const d of DESKS) if (inside(x, y, d.zone)) return d.num
+  for (const r of ROOMS) if (inside(x, y, r.zone)) return r.id
   return null
+}
+
+/** Nombre de la zona sin llamada donde está el punto (para "dónde está"), o null. */
+export function areaAt(x: number, y: number): string | null {
+  for (const a of AREAS) if (inside(x, y, a.rect)) return a.name
+  return null
+}
+
+export function roomById(id: number): Room | undefined {
+  return ROOMS.find(r => r.id === id)
 }
 
 export function deskByNum(n: number): Desk {

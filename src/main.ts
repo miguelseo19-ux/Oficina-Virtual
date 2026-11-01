@@ -1,6 +1,6 @@
 import './style.css'
 import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
-import {collides, deskByNum, DESKS, PX, SOLIDS, WORLD, zoneAt} from './map'
+import {AREAS, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
 import {buildScene} from './scene'
 import {DIR_INDEX, FRAME, loadAssets, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
@@ -39,6 +39,8 @@ function lsSet(k: string, v: string | null) {
 }
 
 function zoneLabel(n: number) {
+  const room = roomById(n)
+  if (room) return room.name
   const o = deskOwner(n)
   return o ? `Escritorio de ${o.name}` : `Escritorio ${n} (libre)`
 }
@@ -403,7 +405,7 @@ function start(me: Person, key: string) {
       case 'equipo': {
         const lines = [...net.players.values()].map(p => {
           const n = personById(p.person)?.name ?? '?'
-          const where = p.zone ? zoneLabel(p.zone) : 'pasillo'
+          const where = p.zone ? zoneLabel(p.zone) : (areaAt(p.x, p.y)?.toLowerCase() ?? 'pasillo')
           return `${n} (${STATUS_LABEL[p.status]}, ${where})`
         })
         return toast(lines.length ? `Conectados: ${lines.join(' · ')}` : 'No hay nadie más conectado')
@@ -699,6 +701,8 @@ function start(me: Person, key: string) {
 
     for (const d of DESKS) drawDeskState(d.num, occupancy.get(d.num) ?? 0, !!deskOwner(d.num) && online.has(deskOwner(d.num)!.id), now)
     for (const d of DESKS) drawPlate(d.num)
+    for (const r of ROOMS) drawRoom(r, occupancy.get(r.id) ?? 0, now)
+    for (const a of AREAS) drawRoomPlate(a.name.toUpperCase(), 'SOLO DECORACIÓN · SIN LLAMADA', a.plate.x, a.plate.y, false)
 
     const all: {x: number; y: number; person: Person | undefined; self: boolean; moving: boolean; status: Status; dir: Dir}[] = []
     for (const p of net.players.values()) {
@@ -846,6 +850,51 @@ function start(me: Person, key: string) {
       ctx.fillText(label, bx + 0.8, by + 12.5)
       spaced(0)
     }
+  }
+
+  /** Sala grupal: brillo cuando hay llamada + cartel con cuántos hay. */
+  function drawRoom(r: Room, people: number, now: number) {
+    const z = r.zone
+    if (people >= 2) {
+      ctx.save()
+      ctx.fillStyle = `rgba(255,140,60,${0.06 + Math.sin(now / 400) * 0.02})`
+      ctx.fillRect(z.x, z.y, z.w, z.h)
+      ctx.strokeStyle = 'rgba(250,70,22,0.7)'
+      ctx.shadowColor = 'rgba(250,70,22,0.9)'
+      ctx.shadowBlur = 14
+      ctx.lineWidth = 2
+      ctx.strokeRect(z.x + 4, z.y + 4, z.w - 8, z.h - 8)
+      ctx.restore()
+    }
+    const sub = people >= 2 ? `● ${people} EN LLAMADA` : people === 1 ? '1 PERSONA · ENTRÁ PARA HABLAR' : 'LLAMADA GRUPAL · ENTRÁ PARA UNIRTE'
+    drawRoomPlate(r.name.toUpperCase(), sub, r.plate.x, r.plate.y, people >= 2)
+  }
+
+  function drawRoomPlate(title: string, sub: string, cx: number, cy: number, live: boolean) {
+    ctx.textAlign = 'center'
+    ctx.font = `700 13px ${SANS}`
+    spaced(-0.2)
+    const w1 = ctx.measureText(title).width
+    ctx.font = `500 9px ${MONO}`
+    spaced(1.6)
+    const w2 = ctx.measureText(sub).width
+    const w = Math.max(w1, w2) + 26
+    const h = 36
+    roundRect(cx - w / 2, cy - h / 2, w, h, 10)
+    ctx.fillStyle = 'rgba(12,8,16,0.8)'
+    ctx.fill()
+    ctx.strokeStyle = live ? 'rgba(250,70,22,0.7)' : 'rgba(150,88,47,0.55)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.font = `700 13px ${SANS}`
+    spaced(-0.2)
+    ctx.fillStyle = C.text
+    ctx.fillText(title, cx, cy - 2)
+    ctx.font = `500 9px ${MONO}`
+    spaced(1.6)
+    ctx.fillStyle = live ? C.warm : C.muted
+    ctx.fillText(sub, cx + 0.8, cy + 11)
+    spaced(0)
   }
 
   /** Cartel con nombre y cargo (dinámico, sale de la configuración). */
@@ -1072,7 +1121,16 @@ function start(me: Person, key: string) {
         li.className = here ? 'on' : 'off'
         let text = 'desconectado'
         if (here && st) {
-          const where = zone ? (zone === p.desk ? 'en su escritorio' : zoneLabel(zone)) : 'en el pasillo'
+          const px = isMe ? pos.x : rp!.x
+          const py = isMe ? pos.y : rp!.y
+          const area = areaAt(px, py)
+          const where = zone
+            ? zone === p.desk
+              ? 'en su escritorio'
+              : zoneLabel(zone)
+            : area
+              ? `en la ${area.toLowerCase()}`
+              : 'en el pasillo'
           text = `${STATUS_LABEL[st]} · ${where}`
         }
         li.innerHTML = `<span class="dot"></span><span class="n"></span><span class="s"></span><span class="acts"></span>`

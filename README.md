@@ -72,6 +72,20 @@ plantas (8×10 y 12×14), sillones (13×12), barra de café (52×18), mesa redon
 pizarra, ventanas con skyline, piso en tileset de 8×8 y avatares con animación
 de caminar (4 direcciones).
 
+## Distribución
+
+- **Oficina principal**: 6 cubículos arriba y 6 abajo (cada uno con su
+  videollamada), pasillo con rincón de descanso, isla central, barra de café
+  y mesa informal.
+- **Ala derecha** (un cuarto del mapa), con dos puertas desde el pasillo:
+  - **Sala de juntas**: mesa de conferencias para el equipo. Entrar = unirse a
+    la **videollamada grupal** de la sala.
+  - **Zona social**: cocina, bar con banquetas y zona de juegos (pool, arcade,
+    puffs, dardos). Es **decorativa**: no abre llamada.
+
+Las salas con llamada están en `ROOMS` y las zonas decorativas en `AREAS`
+(`src/map.ts`).
+
 ## Pantalla
 
 - **Barra de íconos a la izquierda**: Oficina (solo el mapa), Chat,

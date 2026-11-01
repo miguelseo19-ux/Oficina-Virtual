@@ -321,3 +321,168 @@ export function whiteboard(g: G, x: number, y: number, w: number, h: number) {
 }
 
 export { glow, rect, dot, ellipse, mix, chamfer }
+
+// ── Ala derecha: sala de juntas y zona social ──────────────
+/** Piso de baldosas (cocina / zona social). */
+export function tileFloor(g: G, x0: number, y0: number, w: number, h: number) {
+  const a = '#2a2430'
+  const b = '#241f2a'
+  for (let y = y0; y < y0 + h; y += 8) {
+    for (let x = x0; x < x0 + w; x += 8) {
+      rect(g, x, y, 8, 8, ((x - x0) / 8 + (y - y0) / 8) % 2 ? a : b)
+      rect(g, x, y, 8, 1, '#1d1922')
+      rect(g, x, y, 1, 8, '#1d1922')
+    }
+  }
+}
+
+/** Alfombra lisa tipo moqueta (sala de juntas). */
+export function carpet(g: G, x0: number, y0: number, w: number, h: number, seed: number) {
+  const r = rng(seed)
+  rect(g, x0, y0, w, h, '#221b2b')
+  for (let i = 0; i < (w * h) / 14; i++) dot(g, x0 + Math.floor(r() * w), y0 + Math.floor(r() * h), r() < 0.5 ? '#271f31' : '#1e1826')
+}
+
+/** Silla de oficina vista desde arriba. */
+export function officeChair(g: G, cx: number, cy: number, facing: 'up' | 'down' | 'left' | 'right') {
+  chamfer(g, cx - 4, cy - 4, 8, 8, PAL.chairSeat)
+  const back = PAL.chairBack
+  if (facing === 'down') rect(g, cx - 4, cy - 6, 8, 3, back)
+  if (facing === 'up') rect(g, cx - 4, cy + 3, 8, 3, back)
+  if (facing === 'left') rect(g, cx + 3, cy - 4, 3, 8, back)
+  if (facing === 'right') rect(g, cx - 6, cy - 4, 3, 8, back)
+}
+
+/** Mesa larga de conferencias con laptops y tazas. */
+export function conferenceTable(g: G, x: number, y: number, w: number, h: number) {
+  chamfer(g, x + 1, y + 3, w, h, 'rgba(0,0,0,0.45)', 6)
+  chamfer(g, x, y, w, h, PAL.deskEdge, 6)
+  chamfer(g, x + 1, y + 1, w - 2, h - 4, PAL.deskTop, 6)
+  for (let i = 0; i < 3; i++) rect(g, x + 8, y + 6 + i * 6, w - 16, 1, PAL.deskGrain)
+  rect(g, x + 6, y + 1, w - 12, 1, mix(PAL.deskTop, '#ffffff', 0.15))
+  // laptops y papeles a cada lado
+  for (let i = 0; i < 4; i++) {
+    const lx = x + 10 + i * ((w - 28) / 3)
+    laptop(g, lx, y + 3)
+    rect(g, lx + 2, y + h - 9, 5, 4, PAL.paper)
+  }
+  // centro: planta chica y jarra
+  ellipse(g, x + w / 2, y + h / 2, 4, 3, PAL.leaf[1])
+  dot(g, x + w / 2, y + h / 2 - 1, PAL.leaf[3])
+}
+
+/** Pantalla grande en la pared. */
+export function wallTV(g: G, x: number, y: number, w: number, h: number) {
+  rect(g, x - 1, y - 1, w + 2, h + 2, '#0b090f')
+  rect(g, x, y, w, h, '#151b2e')
+  rect(g, x + 2, y + 2, w - 4, h - 4, '#1e2a48')
+  // "diapositiva" con gráfico de barras
+  for (let i = 0; i < 6; i++) rect(g, x + 8 + i * 7, y + h - 4 - (3 + ((i * 5) % 7)), 4, 3 + ((i * 5) % 7), i % 2 ? '#96582f' : '#5ee0ff')
+  rect(g, x + 6, y + 3, 18, 1, '#cfd6ea')
+  rect(g, x + w / 2 - 6, y + h + 1, 12, 1, PAL.metalDk)
+}
+
+export function kitchenCounter(g: G, x: number, y: number, w: number, h: number) {
+  rect(g, x, y, w, h, '#3a2f35')
+  rect(g, x, y, w, 5, '#cfc6b8') // mesada clara
+  rect(g, x, y + 5, w, 1, '#8e8679')
+  for (let cx = x + 2; cx < x + w - 6; cx += 14) {
+    rect(g, cx, y + 7, 12, h - 8, '#33282e')
+    rect(g, cx + 5, y + 9, 2, 1, PAL.metal)
+  }
+  // bacha
+  rect(g, x + 16, y + 1, 12, 3, '#9aa3b0')
+  rect(g, x + 17, y + 2, 10, 1, '#6c7480')
+  rect(g, x + 21, y - 1, 2, 2, PAL.metal)
+  // anafe
+  rect(g, x + 44, y + 1, 14, 3, '#1b1820')
+  for (let i = 0; i < 2; i++) rect(g, x + 46 + i * 7, y + 2, 3, 1, '#e4572e')
+  // tostadora, frascos, microondas
+  rect(g, x + 66, y - 2, 6, 5, PAL.metal)
+  for (let i = 0; i < 3; i++) rect(g, x + 76 + i * 3, y - 1, 2, 4, PAL.books[i])
+  rect(g, x + 88, y - 4, 12, 7, '#2b2935')
+  rect(g, x + 89, y - 3, 7, 5, '#141218')
+}
+
+export function fridge(g: G, x: number, y: number, w: number, h: number) {
+  rect(g, x, y, w, h, '#b9bcc6')
+  rect(g, x, y, w, 1, '#e3e5ea')
+  rect(g, x, y + Math.floor(h * 0.4), w, 1, '#7e8290')
+  rect(g, x + w - 3, y + 3, 1, 4, '#7e8290')
+  rect(g, x + w - 3, y + Math.floor(h * 0.4) + 3, 1, 6, '#7e8290')
+  rect(g, x + 3, y + 3, 3, 3, '#ff9a6a') // imán
+}
+
+export function barCounter(g: G, x: number, y: number, w: number, h: number) {
+  rect(g, x + 1, y + h, w - 2, 2, 'rgba(0,0,0,0.5)')
+  rect(g, x, y, w, h, '#2b1f26')
+  rect(g, x, y, w, 4, PAL.deskTop)
+  rect(g, x, y, w, 1, mix(PAL.deskTop, '#ffffff', 0.18))
+  rect(g, x, y + h - 1, w, 1, PAL.warm)
+  // copas y botellas sobre la barra
+  const cols = ['#5ee0ff', '#ff9a6a', '#b48cff', '#7dffb0']
+  for (let i = 0; i < 6; i++) {
+    const bx = x + 5 + i * 9
+    if (i % 2) rect(g, bx, y - 4, 2, 5, cols[i % 4])
+    else {
+      dot(g, bx, y, '#e8e2d4')
+      rect(g, bx - 1, y - 2, 3, 2, 'rgba(255,255,255,0.35)')
+    }
+  }
+}
+
+/** Repisa con botellas (pared del bar). */
+export function bottleShelf(g: G, x: number, y: number, w: number, seed: number) {
+  const r = rng(seed)
+  const cols = ['#5ee0ff', '#ff9a6a', '#b48cff', '#7dffb0', '#ffd27a', '#c2a24f']
+  for (let row = 0; row < 2; row++) {
+    const sy = y + row * 5
+    rect(g, x, sy + 4, w, 1, PAL.shelf)
+    for (let bx = x + 1; bx < x + w - 1; bx += 2) {
+      if (r() < 0.25) continue
+      const bh = 2 + Math.floor(r() * 2)
+      rect(g, bx, sy + 4 - bh, 1, bh, pick(r, cols))
+    }
+  }
+}
+
+export function poolTable(g: G, x: number, y: number, w: number, h: number) {
+  rect(g, x + 1, y + h, w - 2, 2, 'rgba(0,0,0,0.5)')
+  chamfer(g, x, y, w, h, '#4a2a1c', 2)
+  rect(g, x + 3, y + 3, w - 6, h - 6, '#1f6b4a')
+  rect(g, x + 3, y + 3, w - 6, 1, '#2a8a5f')
+  // troneras
+  for (const [px, py] of [[x + 2, y + 2], [x + w / 2 - 1, y + 1], [x + w - 4, y + 2], [x + 2, y + h - 4], [x + w / 2 - 1, y + h - 3], [x + w - 4, y + h - 4]]) {
+    rect(g, px, py, 2, 2, '#0b090f')
+  }
+  // bolas y taco
+  const balls = ['#f2f2f2', '#ffd27a', '#e4572e', '#5e7cff', '#9b5de5', '#ff9a3c', '#3bb273']
+  balls.forEach((c, i) => rect(g, x + 12 + (i % 4) * 4 + (i > 3 ? 2 : 0), y + 9 + (i > 3 ? 4 : 0), 2, 2, c))
+  rect(g, x + 34, y + h / 2, 10, 1, '#c9a46a')
+}
+
+export function arcade(g: G, x: number, y: number, w: number, h: number, color: string) {
+  rect(g, x, y, w, h, '#1b1622')
+  rect(g, x, y, w, 2, color)
+  rect(g, x + 2, y + 3, w - 4, 6, '#0b0f1e')
+  rect(g, x + 3, y + 4, w - 6, 4, mix(color, '#0b0f1e', 0.5))
+  dot(g, x + 4, y + 6, '#ffffff')
+  rect(g, x + 2, y + 11, w - 4, 2, '#2b2935')
+  dot(g, x + 3, y + 11, '#e4572e')
+  dot(g, x + w - 4, y + 11, '#ffd27a')
+  glow(g, x + w / 2, y + 6, 12, color, 0.35)
+}
+
+export function puff(g: G, cx: number, cy: number, c: string) {
+  ellipse(g, cx, cy + 2, 6, 4, 'rgba(0,0,0,0.4)')
+  ellipse(g, cx, cy, 6, 5, mix(c, '#000000', 0.25))
+  ellipse(g, cx - 1, cy - 1, 4, 3, c)
+}
+
+export function dartboard(g: G, cx: number, cy: number) {
+  ellipse(g, cx, cy, 5, 5, '#1b1622')
+  ellipse(g, cx, cy, 4, 4, '#e8e2d4')
+  ellipse(g, cx, cy, 3, 3, '#e4572e')
+  ellipse(g, cx, cy, 2, 2, '#1f6b4a')
+  dot(g, cx, cy, '#e4572e')
+}

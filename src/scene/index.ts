@@ -11,7 +11,7 @@
  */
 import {deskOwner} from '../config'
 import {drawProp, type Assets} from '../assets'
-import {ART, CORRIDOR, CUBE_PLANTS, DESKS, L, SHELVES} from '../map'
+import {ART, CORRIDOR, CUBE_PLANTS, DESKS, L, SHELVES, WING} from '../map'
 import {
   armchair,
   bookshelf,
@@ -36,7 +36,20 @@ import {
   rug,
   stool,
   whiteboard,
-  chamfer
+  chamfer,
+  arcade,
+  barCounter,
+  bottleShelf,
+  carpet,
+  conferenceTable,
+  dartboard,
+  fridge,
+  kitchenCounter,
+  officeChair,
+  poolTable,
+  puff,
+  tileFloor,
+  wallTV
 } from './sprites'
 import {roundOutline, type G} from './pixel'
 
@@ -56,6 +69,7 @@ export function buildScene(assets: Assets | null = null): HTMLCanvasElement {
   for (const d of DESKS) drawCubicle(g, d)
   drawFrontWalls(g)
   drawCorridor(g)
+  drawWing(g)
   drawLighting(g)
   return cv
 }
@@ -63,11 +77,18 @@ export function buildScene(assets: Assets | null = null): HTMLCanvasElement {
 // ── 1. Piso ────────────────────────────────────────────────
 function drawFloor(g: G) {
   rect(g, 0, 0, ART.w, ART.h, PAL.wallDark)
-  floor(g, L.side, L.wallTop, ART.w - 2 * L.side, L.wallBottom - L.wallTop, 7)
+  floor(g, L.side, L.wallTop, L.mainRight - L.side, L.wallBottom - L.wallTop, 7)
   // los cubículos un poco más oscuros que el pasillo
   for (const d of DESKS) rect(g, d.cell.x, d.cell.y, d.cell.w, d.cell.h, 'rgba(8,4,14,0.28)')
+  // ala derecha: moqueta en la sala de juntas, baldosas en la zona social
+  const j = WING.juntas.room
+  carpet(g, j.x, j.y, j.w, j.h, 3)
+  const so = WING.social.room
+  tileFloor(g, so.x, WING.divider.y, so.w, L.wallBottom - WING.divider.y)
+  // umbrales de las puertas del ala (piso del pasillo)
+  for (const d of [WING.doorJuntas, WING.doorSocial]) floor(g, d.x, d.y, d.w, d.h, d.y)
   // sombra bajo la pared superior
-  rect(g, L.side, L.wallTop, ART.w - 2 * L.side, 2, 'rgba(0,0,0,0.45)')
+  rect(g, L.side, L.wallTop, L.wingRight - L.side, 2, 'rgba(0,0,0,0.45)')
 }
 
 // ── 2. Paredes y ventanas ──────────────────────────────────
@@ -82,6 +103,11 @@ function drawWalls(g: G) {
     for (let x = d.cell.x + 6; x < d.cell.x + d.cell.w; x += 12) rect(g, x, 12, 1, 9, PAL.wallFaceDk)
     rect(g, d.cell.x, 21, d.cell.w, 1, PAL.wallFaceDk)
   }
+  // ala: franja de ventanas y muro del fondo de la sala de juntas
+  cityWindow(g, L.wingX + 2, 4, L.wingRight - L.wingX - 4, 7, 777)
+  rect(g, L.wingX, 11, L.wingRight - L.wingX, 11, PAL.wallFace)
+  rect(g, L.wingX, 11, L.wingRight - L.wingX, 1, PAL.trim)
+  rect(g, L.wingX, 21, L.wingRight - L.wingX, 1, PAL.wallFaceDk)
   // columnas entre cubículos (arriba) con planta colgante
   for (const d of DESKS.filter(d => d.top)) {
     const px = d.cell.x + d.cell.w
@@ -91,18 +117,32 @@ function drawWalls(g: G) {
     hangingPlant(g, px + 2, 3, 7, d.num * 7)
   }
   // paredes laterales con ventanas en el pasillo
-  for (const side of [0, ART.w - L.side]) {
+  for (const side of [0, L.wingRight]) {
     rect(g, side, 0, L.side, ART.h, PAL.wallDark)
     const inner = side === 0 ? L.side - 2 : side
     rect(g, inner, L.wallTop, 2, L.wallBottom - L.wallTop, PAL.wallCap)
-    cityWindow(g, side + 3, L.corridor.y + 6, L.side - 6, L.corridor.h - 12, side + 99)
-    rect(g, side + 2, L.corridor.y + 5, L.side - 4, 1, PAL.trim)
-    rect(g, side + 2, L.corridor.y + L.corridor.h - 6, L.side - 4, 1, PAL.trim)
+    const wy = side === 0 ? L.corridor.y + 6 : 40
+    const wh = side === 0 ? L.corridor.h - 12 : 100
+    cityWindow(g, side + 3, wy, L.side - 6, wh, side + 99)
+    rect(g, side + 2, wy - 1, L.side - 4, 1, PAL.trim)
+    rect(g, side + 2, wy + wh, L.side - 4, 1, PAL.trim)
+  }
+  // pared interna entre la oficina y el ala, con dos puertas
+  const iw = L.mainRight
+  const ww = L.wingX - L.mainRight
+  rect(g, iw, L.wallTop, ww, L.wallBottom - L.wallTop, PAL.wallDark)
+  rect(g, iw, L.wallTop, 2, L.wallBottom - L.wallTop, PAL.wallCap)
+  rect(g, iw + ww - 2, L.wallTop, 2, L.wallBottom - L.wallTop, PAL.wallCap)
+  for (const d of [WING.doorJuntas, WING.doorSocial]) {
+    floor(g, d.x, d.y, d.w, d.h, d.y + 5)
+    rect(g, d.x, d.y - 1, d.w, 1, PAL.trim)
+    rect(g, d.x, d.y + d.h, d.w, 1, PAL.trim)
+    rect(g, d.x + 2, d.y + d.h + 1, d.w - 4, 1, PAL.warm)
   }
   // pared inferior: tapa con paneles de vidrio
   rect(g, 0, L.wallBottom, ART.w, ART.h - L.wallBottom, PAL.wallDark)
   rect(g, 0, L.wallBottom, ART.w, 2, PAL.wallCap)
-  for (const d of DESKS.filter(d => !d.top)) {
+  for (const d of [...DESKS.filter(d => !d.top), {cell: {x: L.wingX, w: L.wingRight - L.wingX}}]) {
     rect(g, d.cell.x + 4, L.wallBottom + 5, d.cell.w - 8, 8, PAL.glass)
     rect(g, d.cell.x + 4, L.wallBottom + 5, d.cell.w - 8, 1, PAL.glassHi)
     for (let x = d.cell.x + 4; x < d.cell.x + d.cell.w - 4; x += 16) rect(g, x, L.wallBottom + 5, 1, 8, PAL.wallDark)
@@ -155,7 +195,7 @@ function drawFrontWalls(g: G) {
       segs.push([x, dr.x])
       x = dr.x + dr.w
     }
-    segs.push([x, ART.w - L.side])
+    segs.push([x, L.mainRight])
     for (const [a, b] of segs) {
       const w = b - a
       rect(g, a, row, w, 2, PAL.wallCap)
@@ -268,14 +308,71 @@ function drawCorridor(g: G) {
   }
   roundTable(g, mcx, mcy, mt.w / 2, mt.h / 2)
   laptop(g, mcx - 4, mcy - 4)
-  const bd = meeting.board
-  if (A) drawProp(g, A, 'corkboard', bd.x + bd.w / 2, bd.y + bd.h)
-  else whiteboard(g, bd.x, bd.y, bd.w, bd.h)
-  if (A) drawProp(g, A, 'palm', mr.x + mr.w - 3, mr.y + mr.h + 2)
-  else plant(g, mr.x + mr.w - 8, mr.y + mr.h - 10, 10, 14, 91)
+
   // lámpara colgante
   ellipse(g, meeting.pendant.x, meeting.pendant.y - 22, 4, 2, '#2b2230')
   rect(g, meeting.pendant.x - 3, meeting.pendant.y - 21, 6, 1, PAL.lamp)
+}
+
+// ── 3c. Ala derecha ────────────────────────────────────────
+function drawWing(g: G) {
+  const {juntas, social, divider, dividerDoor} = WING
+  // Sala de juntas
+  const rg = juntas.rug
+  rug(g, rg.x, rg.y, rg.w, rg.h, '#7a5a40')
+  const t = juntas.table
+  const n = 5
+  for (let i = 0; i < n; i++) {
+    const cx = t.x + 10 + i * ((t.w - 20) / (n - 1))
+    officeChair(g, cx, t.y - 6, 'down')
+    officeChair(g, cx, t.y + t.h + 6, 'up')
+  }
+  officeChair(g, t.x - 7, t.y + t.h / 2, 'right')
+  officeChair(g, t.x + t.w + 7, t.y + t.h / 2, 'left')
+  conferenceTable(g, t.x, t.y, t.w, t.h)
+  wallTV(g, juntas.tv.x, juntas.tv.y, juntas.tv.w, juntas.tv.h)
+  neon(g, 0, juntas.room.x + 16, 15, '#5ee0ff')
+  bookshelf(g, juntas.room.x + juntas.room.w - 24, 13, 18, 8, 515)
+  const bd = juntas.board
+  if (A) drawProp(g, A, 'corkboard', bd.x + bd.w / 2, bd.y + bd.h)
+  else whiteboard(g, bd.x, bd.y, bd.w, bd.h)
+  for (const p of juntas.plants) {
+    if (A) drawProp(g, A, 'bigPlant', p.x + p.w / 2, p.y + p.h)
+    else plant(g, p.x, p.y, p.w, p.h, p.x)
+  }
+
+  // Pared divisoria (se ve su frente desde la zona social) con puerta
+  const segs: [number, number][] = [
+    [divider.x, dividerDoor.x],
+    [dividerDoor.x + dividerDoor.w, divider.x + divider.w]
+  ]
+  for (const [a, b] of segs) {
+    rect(g, a, divider.y, b - a, 3, PAL.wallCap)
+    rect(g, a, divider.y, b - a, 1, PAL.wallCapHi)
+    rect(g, a, divider.y + 3, b - a, divider.h - 3, PAL.wallFace)
+    rect(g, a, divider.y + divider.h - 1, b - a, 1, PAL.wallFaceDk)
+  }
+  rect(g, dividerDoor.x - 1, divider.y, 1, divider.h, PAL.trim)
+  rect(g, dividerDoor.x + dividerDoor.w, divider.y, 1, divider.h, PAL.trim)
+  // repisa de botellas detrás de la barra + neón
+  bottleShelf(g, social.bar.x + 2, divider.y + 3, social.bar.w - 4, 9)
+  neon(g, 1, divider.x + divider.w - 30, divider.y + 7, '#ff5fa2')
+
+  // Zona social
+  const sr = social.rug
+  roundRug(g, sr.x + sr.w / 2, sr.y + sr.h / 2, sr.w / 2, sr.h / 2, '#5a3a5a')
+  barCounter(g, social.bar.x, social.bar.y, social.bar.w, social.bar.h)
+  social.stools.forEach((s, i) => stool(g, s.x, s.y, i % 2 ? PAL.cream : PAL.orange))
+  poolTable(g, social.pool.x, social.pool.y, social.pool.w, social.pool.h)
+  social.arcades.forEach((a, i) => arcade(g, a.x, a.y, a.w, a.h, i ? '#ff5fa2' : '#5ee0ff'))
+  dartboard(g, L.wingRight - 4, 214)
+  social.puffs.forEach((p, i) => puff(g, p.x, p.y, [PAL.orange, PAL.purple, '#4f7ea6'][i % 3]))
+  kitchenCounter(g, social.kitchen.x, social.kitchen.y, social.kitchen.w, social.kitchen.h)
+  fridge(g, social.fridge.x, social.fridge.y, social.fridge.w, social.fridge.h)
+  for (const p of social.plants) {
+    if (A) drawProp(g, A, 'smallPlant', p.x + p.w / 2, p.y + p.h)
+    else plant(g, p.x, p.y, p.w, p.h, p.y)
+  }
 }
 
 // ── 4. Iluminación ─────────────────────────────────────────
@@ -285,7 +382,7 @@ function drawLighting(g: G) {
   g.fillRect(0, 0, ART.w, ART.h)
   // luz bajo las paredes de vidrio
   for (const row of [L.topFront.y, L.botFront.y]) {
-    for (let x = L.side + 20; x < ART.w - L.side; x += 39) glow(g, x, row + 9, 22, PAL.warm, 0.13)
+    for (let x = L.side + 20; x < L.mainRight; x += 39) glow(g, x, row + 9, 22, PAL.warm, 0.13)
   }
   // apliques en columnas
   for (const d of DESKS) {
@@ -302,7 +399,17 @@ function drawLighting(g: G) {
   glow(g, meeting.pendant.x, meeting.pendant.y - 18, 40, PAL.lamp, 0.24)
   // ventanas laterales: luz fría de la ciudad
   glow(g, 10, L.corridor.y + 50, 40, '#6a5aff', 0.12)
-  glow(g, ART.w - 10, L.corridor.y + 50, 40, '#6a5aff', 0.12)
+  glow(g, L.wingRight + 4, 90, 40, '#6a5aff', 0.12)
+  // ala derecha
+  const tv = WING.juntas.tv
+  glow(g, tv.x + tv.w / 2, tv.y + tv.h, 46, '#5ee0ff', 0.16)
+  const t = WING.juntas.table
+  for (const lx of [t.x + 18, t.x + t.w / 2, t.x + t.w - 18]) glow(g, lx, t.y + t.h / 2, 30, PAL.lamp, 0.16)
+  const bar = WING.social.bar
+  glow(g, bar.x + bar.w / 2, bar.y + 2, 46, PAL.warm, 0.2)
+  const pool = WING.social.pool
+  glow(g, pool.x + pool.w / 2, pool.y + pool.h / 2, 34, PAL.lamp, 0.2)
+  glow(g, WING.social.kitchen.x + 50, WING.social.kitchen.y, 40, PAL.lamp, 0.14)
   // anillo de la isla
   const r = island.ring
   for (let x = r.x + 14; x < r.x + r.w - 10; x += 22) {
