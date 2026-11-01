@@ -70,7 +70,23 @@ licencia de **uso no comercial**. Están recortados en `public/assets/limezu/`
 el dibujo generado por código.
 
 - Cada persona elige su personaje con `sprite` en `src/config.ts`
-  (`Adam`, `Alex`, `Alex_b`, `Amelia`, `Bob`).
+  (`Adam`, `Alex`, `Alex_b`, `Amelia`, `Bob`, o uno propio como `Nico`).
+
+### Personajes propios (skins)
+
+Se arman a partir de una imagen con las 4 vistas en una grilla de 2×2 y fondo
+transparente: arriba **de frente | de espaldas**, abajo **mirando a la
+izquierda | mirando a la derecha** (ver `scripts/skins/Nico.png`).
+
+1. Guardar la imagen en `scripts/skins/<Nombre>.png`.
+2. Generar la hoja (necesita Python con Pillow y numpy):
+   `python3 scripts/armar_skin.py scripts/skins/<Nombre>.png public/assets/personajes/<Nombre>.png`
+3. Sumar `<Nombre>: {w: 26, h: 44, body: 40}` a `CUSTOM_SPRITES` en
+   `src/assets.ts` y poner `sprite: '<Nombre>'` en la persona (`src/config.ts`).
+
+Se dibujan a la misma altura que los de LimeZu, con píxeles más finos. Como la
+imagen trae una sola pose por dirección, al caminar el personaje rebota en vez
+de mover las piernas.
 - Hojas de personaje: 2 filas (caminar / reposo) × 24 cuadros de 16×32,
   6 por dirección (derecha, arriba, izquierda, abajo).
 

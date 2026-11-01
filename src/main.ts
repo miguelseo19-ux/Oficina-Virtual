@@ -3,7 +3,7 @@ import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
 import {AREAS, ART, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
 import {buildScene} from './scene'
 import {drawSimpleMap} from './scene/simple'
-import {DIR_INDEX, FRAME, loadAssets, type Assets, type Dir} from './assets'
+import {BODY_H, DIR_INDEX, FRAME, frameOf, loadAssets, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
 import {Chat} from './chat'
@@ -1289,10 +1289,13 @@ function start(me: Person, key: string) {
   ) {
     const sheet = p && assets?.characters[p.sprite]
     if (!sheet || simpleView) return scaled(uiK, x, y, () => drawAvatarCircle(x, y, p, self, mov, now, st))
-    // pies en (x, y + 12); el sprite de 16×32 se escala igual que el decorado (×PX)
+    // pies en (x, y + 12). Todos los personajes miden lo mismo: el cuerpo de BODY_H píxeles de
+    // arte (×PX). Los de LimeZu (16×32) quedan ×PX; los propios, con píxeles más finos.
     const feet = y + 12
-    const w = FRAME.w * PX
-    const h = FRAME.h * PX
+    const fr = frameOf(p.sprite)
+    const k = (BODY_H * PX) / fr.body
+    const w = fr.w * k
+    const h = fr.h * k
     ctx.save()
     if (st === 'away') ctx.globalAlpha = 0.5
     // sombra y aro propio
@@ -1314,16 +1317,16 @@ function start(me: Person, key: string) {
     const row = mov ? 0 : 1
     const fps = mov ? 10 : 6
     const frame = Math.floor(now / (1000 / fps)) % FRAME.perDir
-    const sx = (DIR_INDEX[dir] * FRAME.perDir + frame) * FRAME.w
+    const sx = (DIR_INDEX[dir] * FRAME.perDir + frame) * fr.w
     ctx.imageSmoothingEnabled = false
-    ctx.drawImage(sheet, sx, row * FRAME.h, FRAME.w, FRAME.h, Math.round(x - w / 2), Math.round(feet - h), w, h)
+    ctx.drawImage(sheet, sx, row * fr.h, fr.w, fr.h, Math.round(x - w / 2), Math.round(feet - h), w, h)
     ctx.imageSmoothingEnabled = true
     // etiqueta con el nombre y el estado
     const name = (self ? 'Vos' : (p?.name.split(' ')[0] ?? 'Invitado')).toUpperCase()
     ctx.font = `500 9px ${MONO}`
     spaced(1.4)
     const tw = ctx.measureText(name).width + 26
-    const ty = feet - h - 4
+    const ty = feet - FRAME.h * PX - 4 // misma altura para todos (no depende del cuadro)
     roundRect(x - tw / 2, ty - 16, tw, 18, 9)
     ctx.fillStyle = 'rgba(10,8,12,0.85)'
     ctx.fill()

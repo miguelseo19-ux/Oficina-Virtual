@@ -12,6 +12,22 @@ export const CHARACTER_SPRITES = ['Adam', 'Alex', 'Alex_b', 'Amelia', 'Bob'] as 
 export type CharacterSprite = (typeof CHARACTER_SPRITES)[number]
 
 export const FRAME = {w: 16, h: 32, perDir: 6}
+/** Alto del cuerpo visible en un cuadro de LimeZu: todos los personajes se dibujan a esta altura. */
+export const BODY_H = 23
+
+/**
+ * Personajes propios (public/assets/personajes/<nombre>.png): misma grilla que LimeZu
+ * (2 filas × 24 cuadros, 6 por dirección) pero con cuadros de w×h y el cuerpo de `body` px
+ * de alto, pies en la última fila. Se generan con scripts/armar_skin.py.
+ */
+export const CUSTOM_SPRITES: Record<string, {w: number; h: number; body: number}> = {
+  Nico: {w: 26, h: 44, body: 40}
+}
+
+/** Tamaño de cuadro y de cuerpo de un personaje (LimeZu o propio). */
+export function frameOf(sprite: string): {w: number; h: number; body: number} {
+  return CUSTOM_SPRITES[sprite] ?? {w: FRAME.w, h: FRAME.h, body: BODY_H}
+}
 export type Dir = 'right' | 'up' | 'left' | 'down'
 export const DIR_INDEX: Record<Dir, number> = {right: 0, up: 1, left: 2, down: 3}
 
@@ -47,12 +63,18 @@ function load(src: string): Promise<HTMLImageElement> {
 /** Carga todo; si algo falla, la app sigue con el dibujo generado por código. */
 export async function loadAssets(): Promise<Assets | null> {
   try {
+    const custom = Object.keys(CUSTOM_SPRITES)
     const [props, ...chars] = await Promise.all([
       load(BASE + 'props.png'),
-      ...CHARACTER_SPRITES.map(n => load(`${BASE}characters/${n}.png`))
+      ...CHARACTER_SPRITES.map(n => load(`${BASE}characters/${n}.png`)),
+      // un personaje propio que no carga no tira abajo el resto: esa persona usa el círculo
+      ...custom.map(n => load(`${import.meta.env.BASE_URL}assets/personajes/${n}.png`).catch(() => null))
     ])
     const characters: Record<string, HTMLImageElement> = {}
-    CHARACTER_SPRITES.forEach((n, i) => (characters[n] = chars[i]))
+    ;[...CHARACTER_SPRITES, ...custom].forEach((n, i) => {
+      const img = chars[i]
+      if (img) characters[n] = img
+    })
     return {props, characters}
   } catch (e) {
     console.warn(e)
