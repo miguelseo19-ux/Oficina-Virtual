@@ -30,7 +30,8 @@ export const CUSTOM_SPRITES: Record<string, SpriteFrame> = {
   Nico: {w: 33, h: 43, body: 40, frames: 4},
   Fran: {w: 25, h: 44, body: 40, frames: 4},
   Agus: {w: 24, h: 44, body: 40, frames: 4},
-  Miguel: {w: 32, h: 42, body: 40, frames: 4}
+  Miguel: {w: 32, h: 42, body: 40, frames: 4},
+  Carina: {w: 30, h: 45, body: 40, frames: 4}
 }
 
 /** Tamaño de cuadro, de cuerpo y cantidad de cuadros de un personaje (LimeZu o propio). */
