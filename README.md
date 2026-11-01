@@ -3,7 +3,10 @@
 Oficina 2D estilo Gather para el equipo (hasta 12 personas):
 
 - Cada persona tiene **su escritorio fijo** con su nombre.
-- Te movés con **flechas / WASD** o haciendo **clic** en el mapa.
+- Te movés con **flechas / WASD** o haciendo **clic** en el mapa: el personaje
+  va caminando solo, buscando el camino (entra y sale por las puertas).
+- **Ir a mi escritorio** (botón, tecla `H` o `/escritorio`) también va
+  caminando, no te teletransporta. Cualquier flecha corta la caminata.
 - Al pararte sobre la **alfombra de un escritorio** se abre automáticamente una
   **videollamada** con quien esté ahí. Al alejarte, se corta sola.
 - La cámara y el micrófono solo se encienden cuando hay alguien más en la

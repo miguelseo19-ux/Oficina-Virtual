@@ -29,6 +29,7 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 | `src/scene/*` | Escena pixel art generada por código (pixel.ts primitivas, sprites.ts, index.ts arma el lienzo estático). `simple.ts`: plano liso de la vista *Simplificado* (vectores, desde `map.ts`, incluye `WALLS_ART`) |
 | `src/assets.ts` | Carga sprites de LimeZu (`public/assets/limezu/`): personajes 16×32 animados y atlas de muebles |
 | `src/main.ts` | Login, bucle de juego, cámara (`zoomRel` relativo a la vista de cerca, `follow`, arrastre, rueda/pellizco, vista general), modos de vista (Simplificado/Inmersivo/Automático, `ov.vista` en localStorage), capa dinámica del mapa, avatares, paneles, comandos `/ir`, atajos |
+| `src/path.ts` | Búsqueda de camino (A*) sobre la grilla de colisiones de `map.ts`, con suavizado. La usan el clic en el mapa y "ir a mi escritorio" (`walkTo` en `main.ts`) |
 | `src/net.ts` | Capa Trystero (state, chat, wave, react) |
 | `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla |
 | `src/chat.ts` | Chat General / Cerca / privados (historial en localStorage) |

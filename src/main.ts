@@ -7,6 +7,7 @@ import {DIR_INDEX, FRAME, loadAssets, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
 import {Chat} from './chat'
+import {findPath} from './path'
 import {hydrateIcons, icon} from './icons'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -104,7 +105,8 @@ function start(me: Person, key: string) {
   const ctx = canvas.getContext('2d')!
   const myDesk = deskByNum(me.desk)
   const pos = {x: myDesk.seat.x, y: myDesk.seat.y}
-  let target: {x: number; y: number} | null = null
+  // camino que está recorriendo el personaje solo (clic en el mapa o "ir a mi escritorio")
+  let route: {x: number; y: number}[] = []
   let walkPhase = 0
   let moving = false
   let myDir: Dir = 'down'
@@ -501,7 +503,7 @@ function start(me: Person, key: string) {
     const k = keyName(e)
     if (MOVE_KEYS[k]) {
       keys.add(k)
-      target = null
+      route = []
       e.preventDefault()
     }
   })
@@ -522,10 +524,14 @@ function start(me: Person, key: string) {
   }
   renderStatusUI()
 
+  /** Ir caminando a mi escritorio (por las puertas, esquivando muebles). */
   function goHome() {
-    pos.x = myDesk.seat.x
-    pos.y = myDesk.seat.y
-    target = null
+    walkTo(myDesk.seat)
+  }
+
+  /** Caminar hasta un punto buscando el camino; si no hay forma de llegar, va en línea recta. */
+  function walkTo(p: {x: number; y: number}) {
+    route = findPath(pos, p) ?? [p]
   }
 
   /** Aparecer al lado de una persona (si está en una alfombra, entrás a su llamada). */
@@ -541,11 +547,11 @@ function start(me: Person, key: string) {
       if (!collides(x, y)) {
         pos.x = x
         pos.y = y
-        target = null
+        route = []
         return
       }
     }
-    target = {x: p.x, y: p.y}
+    walkTo({x: p.x, y: p.y})
   }
 
   function wave(personId: string) {
@@ -771,7 +777,7 @@ function start(me: Person, key: string) {
     if (!drag || e.pointerId !== drag.id) return
     if (!drag.moved && e.type === 'pointerup') {
       const r = canvas.getBoundingClientRect()
-      target = screenToWorld(e.clientX - r.left, e.clientY - r.top)
+      walkTo(screenToWorld(e.clientX - r.left, e.clientY - r.top))
     }
     drag = null
     canvas.classList.remove('dragging')
@@ -819,27 +825,29 @@ function start(me: Person, key: string) {
       dx += MOVE_KEYS[k][0]
       dy += MOVE_KEYS[k][1]
     }
-    if (!dx && !dy && target) {
-      const tx = target.x - pos.x
-      const ty = target.y - pos.y
-      const dist = Math.hypot(tx, ty)
-      if (dist < 4) target = null
-      else {
+    let stepScale = 1 // para frenar justo en cada punto del camino, sin pasarse
+    if (!dx && !dy && route.length) {
+      while (route.length && Math.hypot(route[0].x - pos.x, route[0].y - pos.y) < 1) route.shift()
+      if (route.length) {
+        const tx = route[0].x - pos.x
+        const ty = route[0].y - pos.y
+        const dist = Math.hypot(tx, ty)
         dx = tx / dist
         dy = ty / dist
+        stepScale = Math.min(1, dist / (SPEED * dt))
       }
     }
     moving = false
     if (dx || dy) {
       const len = Math.hypot(dx, dy)
-      const vx = (dx / len) * SPEED * dt
-      const vy = (dy / len) * SPEED * dt
+      const vx = (dx / len) * SPEED * dt * stepScale
+      const vy = (dy / len) * SPEED * dt * stepScale
       const ox = pos.x
       const oy = pos.y
       if (!collides(pos.x + vx, pos.y)) pos.x += vx
       if (!collides(pos.x, pos.y + vy)) pos.y += vy
       moving = pos.x !== ox || pos.y !== oy
-      if (!moving) target = null // trabado contra algo
+      if (!moving) route = [] // trabado contra algo
       if (moving) {
         walkPhase += dt * 12
         myDir = dirOf(pos.x - ox, pos.y - oy)
@@ -1022,11 +1030,12 @@ function start(me: Person, key: string) {
       ctx.stroke()
     }
 
-    if (target) {
+    const goal = route[route.length - 1]
+    if (goal) {
       ctx.strokeStyle = 'rgba(150,88,47,0.9)'
       ctx.lineWidth = 1.5
       ctx.beginPath()
-      ctx.arc(target.x, target.y, 8, 0, Math.PI * 2)
+      ctx.arc(goal.x, goal.y, 8, 0, Math.PI * 2)
       ctx.stroke()
     }
     ctx.restore()
