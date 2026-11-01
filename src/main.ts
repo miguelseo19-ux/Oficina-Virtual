@@ -237,6 +237,7 @@ function start(me: Person, key: string) {
 
     if (now - lastSlow > 1000) {
       lastSlow = now
+      renderNetStatus()
       net.prune(now)
       call.tick()
     }
@@ -442,6 +443,15 @@ function start(me: Person, key: string) {
   function roundRect(x: number, y: number, w: number, h: number, r: number) {
     ctx.beginPath()
     ctx.roundRect(x, y, w, h, r)
+  }
+
+  function renderNetStatus() {
+    const {open, total} = net.relayStatus()
+    const peers = net.players.size
+    $('net-status').textContent =
+      open === 0
+        ? `🔴 Sin conexión a la red (0/${total}). Revisá internet o desactivá bloqueadores.`
+        : `🟢 Red: ${open}/${total} servidores · ${peers} ${peers === 1 ? 'persona conectada' : 'personas conectadas'}`
   }
 
   // ── lista de presentes ──

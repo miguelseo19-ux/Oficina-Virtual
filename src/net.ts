@@ -1,4 +1,4 @@
-import {joinRoom, selfId} from 'trystero'
+import {getRelaySockets, joinRoom, selfId} from 'trystero'
 import {APP_ID, RELAY_URLS, ROOM_ID, TURN_SERVERS} from './config'
 
 export type PlayerState = {
@@ -113,6 +113,12 @@ export class Net {
         this.ev.onLeave(id)
       }
     }
+  }
+
+  /** Cuántos servidores de señalización están conectados. */
+  relayStatus(): {open: number; total: number} {
+    const socks = Object.values((getRelaySockets() ?? {}) as Record<string, WebSocket>)
+    return {open: socks.filter(w => w?.readyState === WebSocket.OPEN).length, total: socks.length}
   }
 
   leave() {

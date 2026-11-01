@@ -29,8 +29,17 @@ export const ROOM_ID = 'oficina-principal'
 
 // Relays de señalización (solo se usan para que los navegadores se
 // encuentren; el video y las posiciones viajan directo entre ustedes).
-// Vacío = usa los relays públicos por defecto de la librería.
-export const RELAY_URLS: string[] = []
+// Todos tienen que usar la misma lista (viene en el código, no hay que tocar nada).
+export const RELAY_URLS: string[] = [
+  'wss://nos.lol',
+  'wss://relay.damus.io',
+  'wss://relay.primal.net',
+  'wss://nostr.mom',
+  'wss://nostr.robosats.org',
+  'wss://relay.nostr.dev.br',
+  'wss://nostr.stakey.net',
+  'wss://relay.degmods.com'
+]
 
 // Servidores TURN opcionales, solo hacen falta si alguien está en
 // una red corporativa muy cerrada y no logra ver/escuchar a otros.
