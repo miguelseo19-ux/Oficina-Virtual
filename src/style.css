@@ -352,16 +352,27 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
   background: #07050a; border-left: 1px solid var(--hairline);
   padding: 18px; display: flex; flex-direction: column; gap: 14px; overflow: auto;
 }
-#call header { display: grid; gap: 4px; }
+#call header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.call-head { display: grid; gap: 4px; min-width: 0; }
+#call-views { display: flex; gap: 2px; padding: 3px; border-radius: 10px; background: var(--ghost); flex: none; }
+#call-views button { width: 32px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: var(--muted); }
+#call-views button:hover { background: var(--ghost-hover); color: var(--fg); }
+#call-views button.sel { background: var(--magenta); color: #fff; }
+#call-sharing {
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 12px;
+  background: rgba(250, 70, 22, 0.1); border: 1px solid rgba(250, 70, 22, 0.35);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-warm);
+}
+#call-sharing[hidden] { display: none; }
+#call-sharing span { flex: 1; }
+#call-sharing button { background: var(--accent-warm); color: #fff; padding: 5px 10px; border-radius: 8px; font: 600 12px var(--sans); letter-spacing: 0; text-transform: none; }
+#call-body { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+#screens:empty { display: none; }
 #call-title { font-weight: 700; text-transform: uppercase; letter-spacing: -0.01em; font-size: 15px; }
 .live { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--accent-warm); }
 .pulse { width: 7px; height: 7px; border-radius: 50%; background: var(--accent-warm); box-shadow: 0 0 10px var(--accent-warm); animation: pulse 1.6s ease-in-out infinite; }
 @keyframes pulse { 50% { opacity: 0.35; } }
 #tiles { display: grid; grid-template-columns: 1fr; gap: 10px; position: relative; }
-#tiles[data-count="2"] .tile.self {
-  position: absolute; width: 32%; right: 10px; top: 10px; z-index: 2;
-  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.6);
-}
 .tile { position: relative; aspect-ratio: 16/9; background: #0d0b10; border: 1px solid var(--hairline); border-radius: 14px; overflow: hidden; transition: box-shadow 200ms var(--ease), border-color 200ms; }
 .tile video { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(0.92); }
 .tile.mirror video { transform: scaleX(-1); }
@@ -376,6 +387,30 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
 .tile.muted .label::after { content: ' · sin audio'; color: var(--accent-warm); }
 .tile.speaking { border-color: rgba(150, 88, 47, 0.9); box-shadow: 0 0 0 1px rgba(150, 88, 47, 0.9), 0 0 24px -4px rgba(150, 88, 47, 0.7); }
 .tile.waiting::after { content: 'Conectando…'; position: absolute; top: 8px; right: 10px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+/* pantalla compartida: entera (sin recortar), sobre negro */
+.tile.screen { background: #000; }
+.tile.screen video { object-fit: contain; filter: none; }
+
+/* En grande: la llamada tapa la oficina (no la barra de abajo ni los avisos) */
+#call[data-layout='grid'], #call[data-layout='present'] {
+  grid-area: stage; z-index: 5; width: auto; border-left: 0; overflow: hidden;
+  background: rgba(2, 0, 3, 0.92); backdrop-filter: blur(10px);
+  padding: 18px 18px 92px;
+}
+#call[data-layout='grid'] #call-body, #call[data-layout='present'] #call-body { flex: 1; }
+#call[data-layout='grid'] #tiles {
+  flex: 1; min-height: 0; display: flex; flex-wrap: wrap; align-content: center; justify-content: center; gap: 12px;
+}
+#call[data-layout='grid'] #tiles .tile { width: var(--tw, 320px); }
+#call[data-layout='grid'] .tile .ph, #call[data-layout='present'] #screens .tile .ph { width: 96px; height: 96px; font-size: 30px; }
+#call[data-layout='grid'] .tile .label { font-size: 11px; left: 12px; bottom: 12px; }
+#call[data-layout='present'] #call-body { flex-direction: row; gap: 12px; }
+#call[data-layout='present'] #screens { flex: 1; min-width: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 12px; }
+#call[data-layout='present'] #screens .tile { aspect-ratio: auto; height: 100%; }
+#call[data-layout='present'] #tiles { width: 240px; flex: none; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+#call[data-layout='present'] #tiles .tile { flex: none; }
+body.call-big #map-ctrl { display: none; }
+
 #call-notice { font-size: 12px; color: var(--accent-warm); }
 #call-notice:empty { display: none; }
 
@@ -411,6 +446,10 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
   .rail-btn span { display: none; }
   #side { position: fixed; left: 56px; top: 0; bottom: 0; width: calc(100vw - 56px); z-index: 20; }
   #call { width: auto; max-height: 40vh; border-left: 0; border-top: 1px solid var(--hairline); }
+  #call[data-layout='grid'], #call[data-layout='present'] { max-height: none; border-top: 0; padding-bottom: 76px; }
+  #call[data-layout='present'] #call-body { flex-direction: column; }
+  #call[data-layout='present'] #tiles { width: auto; flex-direction: row; overflow-x: auto; }
+  #call[data-layout='present'] #tiles .tile { width: 160px; }
   #tiles { grid-template-columns: 1fr 1fr; }
   #pill { padding: 4px; }
   #pill button { width: 38px; height: 38px; }

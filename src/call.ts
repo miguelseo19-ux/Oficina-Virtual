@@ -4,6 +4,9 @@ import type {Net, RemotePlayer, Status} from './net'
 const LS_CAM = 'ov.dev.cam'
 const LS_MIC = 'ov.dev.mic'
 const LS_SPK = 'ov.dev.spk'
+const LS_VIEW = 'ov.llamada.vista'
+/** Cómo se ve la llamada: al costado de la oficina, en grande encima de ella, o la pantalla compartida en grande. */
+type Layout = 'side' | 'grid' | 'present'
 function pref(k: string) {
   try {
     return localStorage.getItem(k) || ''
@@ -27,6 +30,11 @@ const canPickSpeaker = 'setSinkId' in HTMLMediaElement.prototype
  * - Dentro de un cubículo o una sala: se ven y escuchan todos los que están en esa zona.
  * - Fuera de ellos (pasillo, zona social): se habla con quienes están cerca (`nearby`).
  * Al alejarse, la llamada se corta sola.
+ *
+ * Vista (botones del encabezado; se recuerda en cada navegador): al costado de la oficina o en
+ * grande encima de ella, con todas las cámaras del mismo tamaño. Si alguien comparte pantalla, a
+ * los demás se les muestra en grande con las caras en una columna al costado (como en Zoom).
+ * La pantalla viaja como otra transmisión (metadata {screen: true}), así la cámara sigue andando.
  */
 export class Call {
   private zone: number | null = null
@@ -35,13 +43,21 @@ export class Call {
   private releaseTimer: number | null = null
   private sentTo = new Set<string>()
   private remote = new Map<string, MediaStream>()
-  private screenTrack: MediaStreamTrack | null = null
+  private screen: MediaStream | null = null // mi pantalla compartida
+  private screenSentTo = new Set<string>()
+  private remoteScreens = new Map<string, MediaStream>()
   private camTrack: MediaStreamTrack | null = null
+  private view: 'side' | 'grid' = pref(LS_VIEW) === 'grid' ? 'grid' : 'side'
+  private layout: Layout = 'side'
+  private dismissed = new Set<string>() // pantallas que achicaste (id de la transmisión)
+  private shownScreens: string[] = []
   micOn = true
   camOn = true
 
   private panel = document.getElementById('call')!
   private tiles = document.getElementById('tiles')!
+  private screensBox = document.getElementById('screens')!
+  private sharing = document.getElementById('call-sharing')!
   private title = document.getElementById('call-title')!
   private btnMic = document.getElementById('btn-mic') as HTMLButtonElement
   private btnCam = document.getElementById('btn-cam') as HTMLButtonElement
@@ -72,6 +88,11 @@ export class Call {
     this.btnMic.onclick = () => this.toggleMic()
     this.btnCam.onclick = () => this.toggleCam()
     this.btnScreen.onclick = () => void this.toggleScreen()
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#call-views [data-view]')) {
+      b.onclick = () => this.setView(b.dataset.view as Layout)
+    }
+    document.getElementById('btn-stop-share')!.onclick = () => this.stopScreen(true)
+    new ResizeObserver(() => this.fitGrid()).observe(this.tiles)
     for (const b of document.querySelectorAll<HTMLElement>('[data-open-devices]')) {
       b.addEventListener('click', e => {
         e.stopPropagation()
@@ -146,10 +167,7 @@ export class Call {
     const old = this.camTrack
     this.camTrack = track
     const targets = [...this.sentTo]
-    if (this.screenTrack) {
-      // compartiendo pantalla: la nueva cámara se usa al dejar de compartir
-      old?.stop()
-    } else if (old) {
+    if (old) {
       this.local.removeTrack(old)
       this.local.addTrack(track)
       if (targets.length) await this.net.room.replaceTrack(old, track, {target: targets})
@@ -215,9 +233,31 @@ export class Call {
     this.dropAnalyser('self')
   }
 
-  /** ¿Los demás me ven? (cámara encendida o compartiendo pantalla) */
+  /** ¿Los demás me ven la cara? */
   get sendingVideo() {
-    return !!this.screenTrack || (!!this.camTrack && this.camOn)
+    return !!this.camTrack && this.camOn
+  }
+
+  get sharingScreen() {
+    return !!this.screen
+  }
+
+  /** Esc en la vista grande: volver al costado. Devuelve si hizo algo. */
+  exitBig(): boolean {
+    if (this.panel.hidden || this.layout === 'side') return false
+    this.setView('side')
+    return true
+  }
+
+  /** Cambiar la vista. Al elegir costado o grande con una pantalla compartida, se achica esa pantalla. */
+  setView(v: Layout) {
+    if (v === 'present') this.dismissed.clear()
+    else {
+      this.view = v
+      savePref(LS_VIEW, v)
+      for (const id of this.shownScreens) this.dismissed.add(id)
+    }
+    this.reconcile()
   }
 
   /** ¿Hay una llamada abierta con alguien? */
@@ -329,6 +369,8 @@ export class Call {
     } else if (!this.panel.hidden || this.local || this.acquiring) {
       this.panel.hidden = true
       this.tiles.replaceChildren()
+      this.screensBox.replaceChildren()
+      document.body.classList.remove('call-big')
       if ((this.local || this.acquiring) && this.releaseTimer === null) {
         this.releaseTimer = window.setTimeout(() => {
           this.releaseTimer = null
@@ -357,17 +399,41 @@ export class Call {
         this.sentTo.delete(id)
       }
     }
+    // mi pantalla compartida va aparte, a los mismos
+    if (this.screen) {
+      for (const id of desired) {
+        if (!this.screenSentTo.has(id)) {
+          this.net.room.addStream(this.screen, {target: id, metadata: {screen: true}})
+          this.screenSentTo.add(id)
+        }
+      }
+    }
+    for (const id of [...this.screenSentTo]) {
+      if (!desired.has(id)) {
+        if (this.screen && this.net.players.has(id)) {
+          try {
+            this.net.room.removeStream(this.screen, {target: id})
+          } catch {
+            /* peer ya desconectado */
+          }
+        }
+        this.screenSentTo.delete(id)
+      }
+    }
     if (desired.size > 0) this.render(desired)
   }
 
-  onRemoteStream(stream: MediaStream, peerId: string) {
-    this.remote.set(peerId, stream)
+  onRemoteStream(stream: MediaStream, peerId: string, meta?: unknown) {
+    if ((meta as {screen?: boolean} | undefined)?.screen === true) this.remoteScreens.set(peerId, stream)
+    else this.remote.set(peerId, stream)
     this.reconcile()
   }
 
   onPeerGone(peerId: string) {
     this.remote.delete(peerId)
+    this.remoteScreens.delete(peerId)
     this.sentTo.delete(peerId)
+    this.screenSentTo.delete(peerId)
     this.reconcile()
   }
 
@@ -397,6 +463,8 @@ export class Call {
     this.releaseMedia()
     this.panel.hidden = true
     this.tiles.replaceChildren()
+    this.screensBox.replaceChildren()
+    document.body.classList.remove('call-big')
     for (const k of [...this.analysers.keys()]) this.dropAnalyser(k)
   }
 
@@ -470,51 +538,44 @@ export class Call {
   }
 
   async toggleScreen() {
-    if (this.screenTrack) return this.stopScreen(true)
+    if (this.screen) return this.stopScreen(true)
     if (!this.local) return
-    let track: MediaStreamTrack
+    let s: MediaStream
     try {
-      const s = await navigator.mediaDevices.getDisplayMedia({video: true, audio: false})
-      track = s.getVideoTracks()[0]
+      s = await navigator.mediaDevices.getDisplayMedia({video: true, audio: false})
     } catch {
       return
     }
-    if (!this.local) {
-      track.stop()
+    const track = s.getVideoTracks()[0]
+    if (!this.local || !track) {
+      s.getTracks().forEach(t => t.stop())
       return
     }
-    this.screenTrack = track
-    track.onended = () => this.stopScreen(true)
-    const targets = [...this.sentTo]
-    if (this.camTrack) {
-      this.local.removeTrack(this.camTrack)
-      this.local.addTrack(track)
-      if (targets.length) void this.net.room.replaceTrack(this.camTrack, track, {target: targets})
-    } else {
-      this.local.addTrack(track)
-      if (targets.length) this.net.room.addTrack(track, this.local, {target: targets})
-    }
+    this.screen = s
+    track.onended = () => this.stopScreen(true) // "Dejar de compartir" del navegador
     this.btnScreen.classList.add('on')
-    this.reconcile()
+    this.reconcile() // se la manda a todos los de la llamada
   }
 
-  private stopScreen(restore: boolean) {
-    const track = this.screenTrack
-    if (!track) return
-    this.screenTrack = null
+  /** Deja de compartir. `update`: refrescar la llamada (no hace falta al cortarla). */
+  private stopScreen(update: boolean) {
+    const s = this.screen
+    if (!s) return
+    this.screen = null
     this.btnScreen.classList.remove('on')
-    track.onended = null
-    track.stop()
-    if (!restore || !this.local) return
-    const targets = [...this.sentTo]
-    this.local.removeTrack(track)
-    if (this.camTrack) {
-      this.local.addTrack(this.camTrack)
-      if (targets.length) void this.net.room.replaceTrack(track, this.camTrack, {target: targets})
-    } else if (targets.length) {
-      this.net.room.removeTrack(track, {target: targets})
+    for (const id of this.screenSentTo) {
+      try {
+        this.net.room.removeStream(s, {target: id})
+      } catch {
+        /* peer ya desconectado */
+      }
     }
-    this.reconcile()
+    this.screenSentTo.clear()
+    for (const t of s.getTracks()) {
+      t.onended = null
+      t.stop()
+    }
+    if (update) this.reconcile()
   }
 
   // ── UI ─────────────────────────────────────────────────────
@@ -536,12 +597,13 @@ export class Call {
       color: mePerson?.color ?? '#888',
       stream: this.local,
       self: true,
-      cam: !!this.screenTrack || (!!this.camTrack && this.camOn),
+      cam: this.sendingVideo,
       mic: this.micOn
     })
     const others = [...inZone]
       .map(id => this.net.players.get(id))
       .filter((p): p is RemotePlayer => !!p)
+    const screens: {key: string; name: string; stream: MediaStream}[] = []
     for (const p of others) {
       const person = personById(p.person)
       wanted.push({
@@ -553,38 +615,72 @@ export class Call {
         cam: p.cam !== false,
         mic: p.mic !== false
       })
+      const scr = this.remoteScreens.get(p.peerId)
+      if (p.screen && scr?.getVideoTracks().some(t => t.readyState === 'live')) {
+        screens.push({key: `scr:${p.peerId}`, name: `Pantalla de ${(person?.name ?? 'Invitado').split(' ')[0]}`, stream: scr})
+      }
     }
 
-    const existing = new Map<string, HTMLElement>()
-    for (const el of [...this.tiles.children] as HTMLElement[]) existing.set(el.dataset.key!, el)
+    // Vista: si hay una pantalla compartida que no achicaste, va en grande
+    this.shownScreens = screens.map(s => s.stream.id)
+    for (const id of [...this.dismissed]) if (!this.shownScreens.includes(id)) this.dismissed.delete(id)
+    this.layout = screens.some(s => !this.dismissed.has(s.stream.id)) ? 'present' : this.view
+    this.panel.dataset.layout = this.layout
+    document.body.classList.toggle('call-big', this.layout !== 'side')
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#call-views [data-view]')) {
+      b.classList.toggle('sel', b.dataset.view === this.layout)
+      if (b.dataset.view === 'present') b.hidden = !screens.length
+    }
+    this.sharing.hidden = !this.screen
 
-    for (const w of wanted) {
-      let tile = existing.get(w.key)
-      if (!tile) {
-        tile = document.createElement('div')
-        tile.className = 'tile'
-        tile.dataset.key = w.key
-        tile.innerHTML = `<div class="ph"></div><video autoplay playsinline></video><span class="label"></span>`
-        this.tiles.appendChild(tile)
+    const existing = new Map<string, HTMLElement>()
+    for (const el of [...this.tiles.children, ...this.screensBox.children] as HTMLElement[]) existing.set(el.dataset.key!, el)
+    const tile = (key: string) => {
+      let t = existing.get(key)
+      if (!t) {
+        t = document.createElement('div')
+        t.className = 'tile'
+        t.dataset.key = key
+        t.innerHTML = `<div class="ph"></div><video autoplay playsinline></video><span class="label"></span>`
       }
-      existing.delete(w.key)
-      const video = tile.querySelector('video')!
-      const ph = tile.querySelector('.ph') as HTMLElement
-      tile.querySelector('.label')!.textContent = w.name
+      existing.delete(key)
+      return t
+    }
+    const setStream = (video: HTMLVideoElement, stream: MediaStream | null) => {
+      if (video.srcObject !== stream) {
+        video.srcObject = stream
+        if (stream) void video.play().catch(() => {})
+      }
+    }
+
+    const faceTiles: HTMLElement[] = []
+    for (const w of wanted) {
+      const t = tile(w.key)
+      faceTiles.push(t)
+      const video = t.querySelector('video')!
+      const ph = t.querySelector('.ph') as HTMLElement
+      t.querySelector('.label')!.textContent = w.name
       ph.textContent = initials(w.name === 'Vos' ? (mePerson?.name ?? '?') : w.name)
       ph.style.background = w.color
       video.muted = w.self
-      tile.classList.toggle('self', w.self)
-      tile.classList.toggle('mirror', w.self && !this.screenTrack)
-      if (video.srcObject !== w.stream) {
-        video.srcObject = w.stream
-        if (w.stream) void video.play().catch(() => {})
-      }
+      t.classList.toggle('self', w.self)
+      t.classList.toggle('mirror', w.self)
+      setStream(video, w.stream)
       if (!w.self) this.applySink(video)
-      const hasVideo = w.cam && !!w.stream?.getVideoTracks().some(t => t.readyState === 'live')
-      tile.classList.toggle('novideo', !hasVideo)
-      tile.classList.toggle('waiting', !w.self && !w.stream)
-      tile.classList.toggle('muted', !w.mic)
+      const hasVideo = w.cam && !!w.stream?.getVideoTracks().some(tr => tr.readyState === 'live')
+      t.classList.toggle('novideo', !hasVideo)
+      t.classList.toggle('waiting', !w.self && !w.stream)
+      t.classList.toggle('muted', !w.mic)
+    }
+    const screenTiles: HTMLElement[] = []
+    for (const s of screens) {
+      const t = tile(s.key)
+      screenTiles.push(t)
+      t.classList.add('screen')
+      t.querySelector('.label')!.textContent = s.name
+      const video = t.querySelector('video')!
+      video.muted = true
+      setStream(video, s.stream)
     }
     for (const el of existing.values()) {
       const v = el.querySelector('video')
@@ -592,13 +688,53 @@ export class Call {
       this.dropAnalyser(el.dataset.key!)
       el.remove()
     }
+    // En grande con pantalla: la pantalla en su lugar y las caras al costado.
+    // Si no: la pantalla es un cuadro más (primero) junto a las caras.
+    if (this.layout === 'present') {
+      place(this.screensBox, screenTiles)
+      place(this.tiles, faceTiles)
+    } else {
+      place(this.screensBox, [])
+      place(this.tiles, [...screenTiles, ...faceTiles])
+    }
     const n = others.length
     this.notice.dataset.alone = n === 0 ? '1' : ''
-    this.tiles.dataset.count = String(wanted.length)
+    this.tiles.dataset.count = String(this.tiles.children.length)
+    this.fitGrid()
+  }
+
+  /**
+   * Vista en grande: todos los cuadros del mismo tamaño, lo más grandes que entren (prueba cada
+   * cantidad de columnas y se queda con la que deja el cuadro 16:9 más ancho).
+   */
+  private fitGrid() {
+    const box = this.tiles
+    const n = box.children.length
+    if (this.layout !== 'grid' || this.panel.hidden || !n) {
+      box.style.removeProperty('--tw')
+      return
+    }
+    const W = box.clientWidth
+    const H = box.clientHeight
+    const gap = 12
+    let best = 0
+    for (let cols = 1; cols <= n; cols++) {
+      const rows = Math.ceil(n / cols)
+      best = Math.max(best, Math.min((W - gap * (cols - 1)) / cols, ((H - gap * (rows - 1)) / rows) * (16 / 9)))
+    }
+    box.style.setProperty('--tw', `${Math.max(120, Math.floor(best))}px`)
   }
 
   /** Refresca estados visuales (cámara apagada, etc.) — barato, se llama ~1/s. */
   tick() {
     this.reconcile()
   }
+}
+
+/** Deja los elementos de `box` en este orden (mueve solo lo necesario: los videos siguen andando). */
+function place(box: HTMLElement, list: HTMLElement[]) {
+  list.forEach((el, i) => {
+    if (box.children[i] !== el) box.insertBefore(el, box.children[i] ?? null)
+  })
+  while (box.children.length > list.length) box.lastElementChild!.remove()
 }

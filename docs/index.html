@@ -9,8 +9,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="./assets/index-CgnZT2g-.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-cQABycfS.css">
+    <script type="module" crossorigin src="./assets/index-BUy9X9ky.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-C1O5iTM5.css">
   </head>
   <body>
     <!-- Login -->
@@ -103,7 +103,7 @@
             <dt><kbd>P</kbd></dt><dd>Mini ventana (queda flotando mientras trabajás en otra pestaña)</dd>
             <dt><kbd>0</kbd></dt><dd>Volver a la vista normal (sigue a tu personaje)</dd>
             <dt><kbd>?</kbd></dt><dd>Esta ayuda</dd>
-            <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles · llamada en grande → al costado</dd>
           </dl>
           <p class="muted small">También <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> (micrófono) y <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (cámara), como en Gather.</p>
           <span class="eyebrow">Comandos en el chat</span>
@@ -193,10 +193,21 @@
 
       <section id="call" hidden>
         <header>
-          <span class="live"><i class="pulse"></i>En llamada</span>
-          <strong id="call-title"></strong>
+          <div class="call-head">
+            <span class="live"><i class="pulse"></i>En llamada</span>
+            <strong id="call-title"></strong>
+          </div>
+          <div id="call-views">
+            <button data-view="side" title="Al costado de la oficina"><i data-icon="sidebar" data-size="18"></i></button>
+            <button data-view="grid" title="En grande, sobre la oficina (Esc para volver)"><i data-icon="grid" data-size="18"></i></button>
+            <button data-view="present" title="Pantalla compartida en grande" hidden><i data-icon="screen" data-size="18"></i></button>
+          </div>
         </header>
-        <div id="tiles"></div>
+        <div id="call-sharing" hidden><i class="pulse"></i><span>Estás compartiendo tu pantalla</span><button id="btn-stop-share">Dejar de compartir</button></div>
+        <div id="call-body">
+          <div id="screens"></div>
+          <div id="tiles"></div>
+        </div>
         <p id="call-notice"></p>
         <p id="call-hint" class="muted small">Alejate de la alfombra para cortar.</p>
       </section>

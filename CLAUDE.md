@@ -32,7 +32,7 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 | `src/mini.ts` | Mini ventana flotante (Document Picture-in-Picture, solo Chrome/Edge): mini mapa con `drawSimpleMap`, avisos de cercanía/visitas, videos de la llamada (`Call.peers()`), mic/cámara/no molestar. Botón `#btn-mini` o tecla P; Chrome la abre sola al cambiar de pestaña en llamada (Media Session `enterpictureinpicture`) |
 | `src/path.ts` | Búsqueda de camino (A*) sobre la grilla de colisiones de `map.ts`, con suavizado. La usan el clic en el mapa y "ir a mi escritorio" (`walkTo` en `main.ts`) |
 | `src/net.ts` | Capa Trystero (state, chat, wave, react) |
-| `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla |
+| `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla. Vistas de la llamada (`data-layout` en `#call`: `side` al costado, `grid` en grande sobre la oficina con `fitGrid()`, `present` pantalla compartida en grande + caras al costado; `ov.llamada.vista`). La pantalla va como otra transmisión con metadata `{screen: true}` y el estado `screen` en `PlayerState` |
 | `src/chat.ts` | Chat General / Cerca / privados (historial en localStorage) |
 | `src/icons.ts` | Íconos SVG de línea fina (no usar emojis como íconos) |
 | `src/style.css` | Marca *Private Session II*: negro `#020003`, bronce `#96582f`, naranja `#fa4616`, Space Grotesk + JetBrains Mono, títulos en MAYÚSCULAS |

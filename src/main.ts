@@ -176,7 +176,7 @@ function start(me: Person, key: string) {
       renderRoster()
       chat.refresh()
     },
-    onStream: (stream, id) => call.onRemoteStream(stream, id),
+    onStream: (stream, id, meta) => call.onRemoteStream(stream, id, meta),
     onError: msg => toast(msg),
     onChat: m => chat.receive(m),
     onWave: from => receiveWave(from),
@@ -474,7 +474,7 @@ function start(me: Person, key: string) {
     }
     if (e.key === 'Escape') {
       if (MENUS.some(m => !$(m).hidden)) openMenu(null)
-      else setView(null)
+      else if (!call.exitBig()) setView(null)
       return
     }
     if ((e.target as HTMLElement).closest('input,select,textarea')) return
@@ -978,6 +978,7 @@ function start(me: Person, key: string) {
       zone: currentZone,
       mic: call.micOn,
       cam: call.sendingVideo,
+      screen: call.sharingScreen,
       status
     }
   }

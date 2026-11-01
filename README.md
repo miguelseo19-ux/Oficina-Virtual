@@ -19,6 +19,15 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
 - Si alguien llega a tu escritorio y no estás, te avisa con sonido y
   notificación ("Ir a mi escritorio").
 - Botones para silenciar micrófono, apagar cámara y compartir pantalla.
+- **Vista de la llamada** (botones arriba a la derecha de la llamada; se recuerda
+  en cada navegador): *al costado* de la oficina o *en grande*, encima de la
+  oficina. En las dos, todas las cámaras tienen el mismo tamaño (en grande, lo
+  más grandes que entren). `Esc` vuelve de la vista grande al costado.
+- **Pantalla compartida**: a los demás se les muestra en grande, encima de la
+  oficina, con las caras de todos en una columna al costado (como en Zoom). Se
+  puede achicar con los botones de vista (queda como un cuadro más) y volver a
+  agrandar con el botón de pantalla. Quien comparte sigue mostrando su cámara y
+  ve un aviso con "Dejar de compartir".
 - El video de quien está hablando se resalta en verde.
 - Botón ⚙️ en la llamada para elegir **cámara, micrófono y parlante/auriculares**
   (se puede cambiar en plena conversación y queda guardado para la próxima vez;

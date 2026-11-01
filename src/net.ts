@@ -10,6 +10,7 @@ export type PlayerState = {
   zone: number | null
   mic: boolean
   cam: boolean
+  screen?: boolean // compartiendo pantalla (va como otra transmisión, con metadata {screen: true})
   status: Status
 }
 
@@ -35,7 +36,7 @@ type Room = ReturnType<typeof joinRoom>
 export interface NetEvents {
   onPlayer: (p: RemotePlayer, prevZone: number | null | undefined) => void
   onLeave: (peerId: string) => void
-  onStream: (stream: MediaStream, peerId: string) => void
+  onStream: (stream: MediaStream, peerId: string, meta?: unknown) => void
   onError: (msg: string) => void
   onChat: (msg: ChatMsg, peerId: string) => void
   onWave: (fromPerson: string, peerId: string) => void
@@ -106,7 +107,7 @@ export class Net {
       this.players.delete(peerId)
       ev.onLeave(peerId)
     }
-    this.room.onPeerStream = (stream, peerId) => ev.onStream(stream, peerId)
+    this.room.onPeerStream = (stream, peerId, meta) => ev.onStream(stream, peerId, meta)
   }
 
   private receive(s: PlayerState, peerId: string) {
@@ -131,6 +132,7 @@ export class Net {
       this.last.zone !== s.zone ||
       this.last.mic !== s.mic ||
       this.last.cam !== s.cam ||
+      !!this.last.screen !== !!s.screen ||
       this.last.status !== s.status ||
       Math.abs(this.last.x - s.x) > 0.5 ||
       Math.abs(this.last.y - s.y) > 0.5
@@ -139,6 +141,7 @@ export class Net {
       this.last.zone !== s.zone ||
       this.last.mic !== s.mic ||
       this.last.cam !== s.cam ||
+      !!this.last.screen !== !!s.screen ||
       this.last.status !== s.status
     if ((changed && now - this.lastSentAt > 80) || zoneChanged || now - this.lastSentAt > 2000) {
       this.last = {...s}
