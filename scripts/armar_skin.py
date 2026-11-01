@@ -102,14 +102,15 @@ def scale_row(poses):
     return out
 
 
-def common_palette(all_poses, colors=32):
-    """Una sola paleta para todas las poses (que los colores no titilen al animar)."""
+def common_palette(all_poses, colors=48):
+    """Una sola paleta para todas las poses (que los colores no titilen al animar). 48 colores con
+    ajuste k-means: con menos, los colores chicos (una camiseta blanca) se funden con la piel."""
     strip = Image.new('RGBA', (sum(p['img'].width for p in all_poses), max(p['img'].height for p in all_poses)))
     x = 0
     for p in all_poses:
         strip.paste(p['img'], (x, 0))
         x += p['img'].width
-    pal = strip.convert('RGB').quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
+    pal = strip.convert('RGB').quantize(colors=colors, method=Image.Quantize.MEDIANCUT, kmeans=4, dither=Image.Dither.NONE)
     for p in all_poses:
         rgb = np.array(p['img'].convert('RGB').quantize(palette=pal, dither=Image.Dither.NONE).convert('RGB'))
         alpha = np.array(p['img'])[..., 3]

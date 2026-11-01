@@ -2,7 +2,7 @@
 //  CONFIGURACIÓN DE LA OFICINA
 //  Para agregar a alguien: sumá una entrada en PEOPLE con un
 //  `desk` libre (1 a 12) y un `sprite`: uno de LimeZu (Adam, Alex, Alex_b,
-//  Amelia, Bob) o uno propio de CUSTOM_SPRITES en src/assets.ts (Nico, Fran).
+//  Amelia, Bob) o uno propio de CUSTOM_SPRITES en src/assets.ts (Nico, Fran, Agus).
 // ─────────────────────────────────────────────────────────────
 
 export interface Person {
@@ -11,7 +11,7 @@ export interface Person {
   role: string
   color: string
   desk: number // 1..12
-  sprite: string // personaje pixel art: Adam, Alex, Alex_b, Amelia, Bob o propio (Nico, Fran)
+  sprite: string // personaje pixel art: Adam, Alex, Alex_b, Amelia, Bob o propio (Nico, Fran, Agus)
 }
 
 export const PEOPLE: Person[] = [
@@ -19,7 +19,7 @@ export const PEOPLE: Person[] = [
   {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#4f7ea6', desk: 2, sprite: 'Nico'},
   {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3, sprite: 'Fran'},
   {id: 'carina', name: 'Carina', role: 'Project Manager', color: '#8a6bb8', desk: 4, sprite: 'Amelia'},
-  {id: 'agus', name: 'Agus', role: 'Editor', color: '#c9a04f', desk: 5, sprite: 'Alex_b'}
+  {id: 'agus', name: 'Agus', role: 'Editor', color: '#c9a04f', desk: 5, sprite: 'Agus'}
 ]
 
 export const DESK_COUNT = 12
