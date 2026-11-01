@@ -70,12 +70,13 @@ licencia de **uso no comercial**. Están recortados en `public/assets/limezu/`
 el dibujo generado por código.
 
 - Cada persona elige su personaje con `sprite` en `src/config.ts`
-  (`Adam`, `Alex`, `Alex_b`, `Amelia`, `Bob`, o uno propio como `Nico`).
+  (`Adam`, `Alex`, `Alex_b`, `Amelia`, `Bob`, o uno propio como `Nico` o `Fran`).
 
 ### Personajes propios (skins)
 
-Se arman a partir de una imagen con fondo transparente y **una fila por
-dirección**: de frente, de espaldas y mirando a un costado (el otro costado se
+Se arman a partir de una imagen con fondo transparente (o de un color liso,
+como negro: el script lo borra desde los bordes sin tocar al personaje aunque
+tenga ropa del mismo color) y **una fila por dirección**: de frente, de espaldas y mirando a un costado (el otro costado se
 arma espejando). En cada fila van las poses de la caminata de izquierda a
 derecha, por ejemplo 4: pie adelante, piernas juntas, el otro pie adelante,
 piernas juntas (ver `scripts/skins/Nico.png`). La 2.ª pose se usa para estar
