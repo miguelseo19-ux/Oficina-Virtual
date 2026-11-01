@@ -39,6 +39,26 @@ bronce `#96582f`, naranja `#fa4616` para alertas, tipografías **Space Grotesk**
 bordes de 1px casi invisibles y vidrio esmerilado en lo flotante. Los íconos
 son SVG de línea fina (estilo SF Regular) en `src/icons.ts`.
 
+## Entorno pixel art (16 bits)
+
+El mapa es una escena pixel art generada por código (sin imágenes externas):
+
+| Archivo | Qué hace |
+|---|---|
+| `src/map.ts` | **Fuente de verdad** de la geometría, en "píxeles de arte" (488×320, ×3 en el mundo): cubículos, puertas, tabiques, pasillo, muebles. De acá salen las **colisiones** y las **zonas de llamada**. |
+| `src/scene/pixel.ts` | Primitivas de pixel art (rectángulos, elipses sin antialias, halos de luz). |
+| `src/scene/sprites.ts` | Catálogo de sprites: piso de parquet, ventanas con ciudad, escritorio con monitores, silla, alfombras, plantas, bibliotecas, neones, sillones, isla, barra de café, mesa de reuniones, pizarra. |
+| `src/scene/index.ts` | Arma el decorado estático una sola vez (piso → paredes → objetos → luz). |
+| `src/main.ts` | Capa dinámica por encima: pantallas que se encienden si el dueño está conectado, brillo "en llamada", carteles con nombre y cargo (desde `config.ts`), avatares, globitos y reacciones. |
+
+Para ver colisiones (rojo) y zonas de llamada (verde): agregar `?debug=1` a la URL.
+
+**Para mayor fidelidad** se pueden reemplazar sprites uno por uno por PNG
+dibujados a mano (mismas medidas): escritorio con monitores (46×15), silla,
+plantas (8×10 y 12×14), sillones (13×12), barra de café (52×18), mesa redonda,
+pizarra, ventanas con skyline, piso en tileset de 8×8 y avatares con animación
+de caminar (4 direcciones).
+
 ## Pantalla
 
 - **Barra de íconos a la izquierda**: Oficina (solo el mapa), Chat,

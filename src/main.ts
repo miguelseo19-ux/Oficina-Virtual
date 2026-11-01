@@ -1,14 +1,7 @@
 import './style.css'
 import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
-import {
-  collides,
-  deskByNum,
-  DESKS,
-  LOUNGE,
-  PLANTS,
-  WORLD,
-  zoneAt
-} from './map'
+import {collides, deskByNum, DESKS, PX, SOLIDS, WORLD, zoneAt} from './map'
+import {buildScene} from './scene'
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
 import {Chat} from './chat'
@@ -19,6 +12,7 @@ const LS_USER = 'ov.user'
 const LS_KEY = 'ov.key'
 const AWAY_AFTER_MS = 10 * 60 * 1000 // 10 minutos sin actividad → ausente
 const NEAR_RADIUS = 200
+const DEBUG = new URLSearchParams(location.search).has('debug') // ?debug=1 muestra colisiones y zonas
 
 const STATUS_LABEL: Record<Status, string> = {
   available: 'disponible',
@@ -560,7 +554,12 @@ function start(me: Person, key: string) {
     canvas.width = Math.round(vw * dpr)
     canvas.height = Math.round(vh * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    zoom = Math.min(1.15, Math.max(0.55, Math.min(vw / 1100, vh / 760)))
+    // Que entre la oficina completa si hay lugar; en pantallas chicas, la cámara sigue al avatar.
+    // El tamaño de cada píxel de arte se redondea a cuartos de píxel para que el pixel art se vea nítido.
+    const fit = Math.min(vw / WORLD.w, vh / WORLD.h)
+    const z = Math.max(0.55, Math.min(fit, 1.6))
+    const artPx = Math.max(1.5, Math.floor(z * PX * 4) / 4)
+    zoom = artPx / PX
   }
   new ResizeObserver(resize).observe(canvas)
   resize()
@@ -648,6 +647,8 @@ function start(me: Person, key: string) {
     requestAnimationFrame(step)
   }
 
+  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone}
+
   function myState() {
     return {
       person: me.id,
@@ -679,17 +680,17 @@ function start(me: Person, key: string) {
     ctx.scale(zoom, zoom)
     ctx.translate(-camX, -camY)
 
-    drawFloor()
+    drawScene()
 
-    // ocupación de cada escritorio
+    // ocupación de cada escritorio y quién está conectado
     const occupancy = new Map<number, number>()
     const bump = (z: number | null) => z && occupancy.set(z, (occupancy.get(z) ?? 0) + 1)
     bump(currentZone)
     for (const p of net.players.values()) bump(p.zone)
+    const online = new Set([me.id, ...[...net.players.values()].map(p => p.person)])
 
-    for (const d of DESKS) drawDesk(d.num, occupancy.get(d.num) ?? 0, now)
-    drawLounge()
-    for (const pl of PLANTS) drawPlant(pl.x + pl.w / 2, pl.y + pl.h / 2)
+    for (const d of DESKS) drawDeskState(d.num, occupancy.get(d.num) ?? 0, !!deskOwner(d.num) && online.has(deskOwner(d.num)!.id), now)
+    for (const d of DESKS) drawPlate(d.num)
 
     const all: {x: number; y: number; person: Person | undefined; self: boolean; moving: boolean; status: Status}[] = []
     for (const p of net.players.values()) {
@@ -724,6 +725,14 @@ function start(me: Person, key: string) {
       }
     }
 
+    if (DEBUG) {
+      ctx.strokeStyle = 'rgba(255,0,80,0.9)'
+      ctx.lineWidth = 1
+      for (const r of SOLIDS) ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
+      ctx.strokeStyle = 'rgba(0,255,160,0.7)'
+      for (const d of DESKS) ctx.strokeRect(d.zone.x + 2, d.zone.y + 2, d.zone.w - 4, d.zone.h - 4)
+    }
+
     if (target) {
       ctx.strokeStyle = 'rgba(150,88,47,0.9)'
       ctx.lineWidth = 1.5
@@ -756,136 +765,102 @@ function start(me: Person, key: string) {
     ;(ctx as CanvasRenderingContext2D & {letterSpacing?: string}).letterSpacing = `${px}px`
   }
 
-  function drawFloor() {
-    ctx.fillStyle = C.floor
-    ctx.fillRect(0, 0, WORLD.w, WORLD.h)
-    // grilla de puntos
-    ctx.fillStyle = C.dot
-    for (let y = 36; y < WORLD.h; y += 32) {
-      for (let x = 36; x < WORLD.w; x += 32) ctx.fillRect(x, y, 1.5, 1.5)
-    }
-    // paredes
-    ctx.fillStyle = C.wall
-    ctx.fillRect(0, 0, WORLD.w, 20)
-    ctx.fillRect(0, WORLD.h - 20, WORLD.w, 20)
-    ctx.fillRect(0, 0, 20, WORLD.h)
-    ctx.fillRect(WORLD.w - 20, 0, 20, WORLD.h)
-    ctx.strokeStyle = C.hair
-    ctx.lineWidth = 1
-    ctx.strokeRect(20.5, 20.5, WORLD.w - 41, WORLD.h - 41)
+  // Decorado pixel art (estático, se arma una vez) — ver src/scene
+  const scene = buildScene()
+
+  function drawScene() {
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(scene, 0, 0, WORLD.w, WORLD.h)
+    ctx.imageSmoothingEnabled = true
   }
 
-  function drawDesk(n: number, people: number, now: number) {
+  /** Capa dinámica de cada escritorio: pantallas, llamada en curso. */
+  function drawDeskState(n: number, people: number, ownerOnline: boolean, now: number) {
     const d = deskByNum(n)
     const owner = deskOwner(n)
-    const color = owner?.color ?? '#7a7480'
     const z = d.zone
-    const talking = people >= 2
-    // alfombra
-    roundRect(z.x, z.y, z.w, z.h, 16)
-    ctx.fillStyle = talking ? 'rgba(250,70,22,0.07)' : people > 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)'
-    ctx.fill()
-    ctx.save()
-    if (talking) {
-      ctx.shadowColor = 'rgba(150,88,47,0.8)'
-      ctx.shadowBlur = 18 + Math.sin(now / 300) * 6
+    const t = d.tableP
+    // pantallas: se encienden cuando el dueño está conectado
+    if (owner && ownerOnline) {
+      const screens = [t.x + t.w / 2 - 13, t.x + t.w / 2 + 2]
+      ctx.save()
+      for (const sx of screens) {
+        ctx.fillStyle = hexA(owner.color, 0.95)
+        ctx.fillRect(sx * PX, (t.y + 2) * PX, 11 * PX, 6 * PX)
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'
+        ctx.fillRect(sx * PX, (t.y + 2) * PX, 11 * PX, PX)
+        ctx.fillRect((sx + 2) * PX, (t.y + 4) * PX, 5 * PX, PX)
+      }
+      ctx.globalCompositeOperation = 'lighter'
+      const gx = (t.x + t.w / 2) * PX
+      const gy = (t.y + 5) * PX
+      const grad = ctx.createRadialGradient(gx, gy, 0, gx, gy, 70)
+      grad.addColorStop(0, hexA(owner.color, 0.35))
+      grad.addColorStop(1, hexA(owner.color, 0))
+      ctx.fillStyle = grad
+      ctx.fillRect(gx - 70, gy - 70, 140, 140)
+      ctx.restore()
     }
-    ctx.lineWidth = 1
-    ctx.setLineDash(people > 0 ? [] : [4, 6])
-    ctx.strokeStyle = talking ? 'rgba(150,88,47,0.9)' : people > 0 ? hexA(color, 0.6) : owner ? hexA(color, 0.28) : 'rgba(255,255,255,0.14)'
-    ctx.stroke()
-    ctx.restore()
-    ctx.setLineDash([])
+    // llamada en curso (2+ personas): luz cálida en el cubículo
+    if (people >= 2) {
+      ctx.save()
+      const pulse = 0.08 + Math.sin(now / 400) * 0.025
+      ctx.fillStyle = `rgba(255,140,60,${pulse})`
+      ctx.fillRect(z.x, z.y, z.w, z.h)
+      ctx.strokeStyle = 'rgba(250,70,22,0.7)'
+      ctx.shadowColor = 'rgba(250,70,22,0.9)'
+      ctx.shadowBlur = 14
+      ctx.lineWidth = 2
+      ctx.strokeRect(z.x + 4, z.y + 4, z.w - 8, z.h - 8)
+      ctx.restore()
+      const label = `● ${people} EN LLAMADA`
+      ctx.font = `600 10px ${MONO}`
+      spaced(1.6)
+      const w = ctx.measureText(label).width + 14
+      const bx = z.x + z.w / 2
+      const by = d.top ? d.door.y * PX - 34 : z.y + 10
+      roundRect(bx - w / 2, by, w, 18, 9)
+      ctx.fillStyle = 'rgba(10,8,12,0.85)'
+      ctx.fill()
+      ctx.fillStyle = C.warm
+      ctx.textAlign = 'center'
+      ctx.fillText(label, bx + 0.8, by + 12.5)
+      spaced(0)
+    }
+  }
 
-    // mesa
-    const t = d.table
-    roundRect(t.x, t.y, t.w, t.h, 10)
-    ctx.fillStyle = C.table
-    ctx.fill()
-    ctx.strokeStyle = C.hair
-    ctx.stroke()
-    // monitor con brillo del color de la persona
-    const mx = t.x + t.w / 2
-    const my = d.top ? t.y + 17 : t.y + t.h - 17
-    roundRect(mx - 25, my - 8, 50, 16, 4)
-    ctx.fillStyle = '#060408'
-    ctx.fill()
-    ctx.save()
-    ctx.shadowColor = hexA(color, owner ? 0.8 : 0.2)
-    ctx.shadowBlur = 12
-    ctx.fillStyle = hexA(color, owner ? 0.85 : 0.25)
-    roundRect(mx - 21, my - 5, 42, 10, 2)
-    ctx.fill()
-    ctx.restore()
-    // silla
-    ctx.fillStyle = C.chair
-    ctx.beginPath()
-    ctx.arc(d.chair.x, d.chair.y, 13, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.strokeStyle = C.hair
-    ctx.stroke()
-
-    // cartel: NOMBRE en mayúsculas + cargo en mono
-    const cx = z.x + z.w / 2
-    const ly = d.top ? z.y + z.h - 34 : z.y + 30
+  /** Cartel con nombre y cargo (dinámico, sale de la configuración). */
+  function drawPlate(n: number) {
+    const d = deskByNum(n)
+    const owner = deskOwner(n)
+    const name = owner ? owner.name.toUpperCase() : 'LIBRE'
+    const role = owner ? owner.role.toUpperCase() : `ESCRITORIO ${String(n).padStart(2, '0')}`
     ctx.textAlign = 'center'
-    ctx.font = `700 14px ${SANS}`
+    ctx.font = `700 13px ${SANS}`
+    spaced(-0.2)
+    const w1 = ctx.measureText(name).width
+    ctx.font = `500 9px ${MONO}`
+    spaced(1.6)
+    const w2 = ctx.measureText(role).width
+    const w = Math.max(w1, w2) + 26
+    const h = 36
+    const x = d.plate.x - w / 2
+    const y = d.plate.y - h / 2
+    roundRect(x, y, w, h, 10)
+    ctx.fillStyle = 'rgba(12,8,16,0.78)'
+    ctx.fill()
+    ctx.strokeStyle = owner ? hexA(owner.color, 0.45) : C.hair
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.font = `700 13px ${SANS}`
     spaced(-0.2)
     ctx.fillStyle = owner ? C.text : C.subtle
-    ctx.fillText(owner ? owner.name.toUpperCase() : 'LIBRE', cx, ly)
+    ctx.fillText(name, d.plate.x, y + 16)
     ctx.font = `500 9px ${MONO}`
     spaced(1.6)
     ctx.fillStyle = owner ? C.muted : C.subtle
-    ctx.fillText(owner ? owner.role.toUpperCase() : `ESCRITORIO ${String(n).padStart(2, '0')}`, cx, ly + 16)
-    if (talking) {
-      ctx.font = `600 9px ${MONO}`
-      spaced(1.8)
-      ctx.fillStyle = C.warm
-      ctx.fillText(`● ${people} EN LLAMADA`, cx, d.top ? z.y + 22 : z.y + z.h - 12)
-    }
+    ctx.fillText(role, d.plate.x + 0.8, y + 29)
     spaced(0)
-  }
-
-  function drawLounge() {
-    const l = LOUNGE
-    roundRect(l.x, l.y, l.w, l.h, 50)
-    ctx.fillStyle = 'rgba(150,88,47,0.07)'
-    ctx.fill()
-    ctx.strokeStyle = 'rgba(150,88,47,0.35)'
-    ctx.lineWidth = 1
-    ctx.stroke()
-    roundRect(l.x + 24, l.y + 12, l.w - 48, 20, 10)
-    ctx.fillStyle = C.chair
-    ctx.fill()
-    roundRect(l.x + l.w / 2 - 38, l.y + 50, 76, 30, 8)
-    ctx.fillStyle = C.table
-    ctx.fill()
-    ctx.strokeStyle = C.hair
-    ctx.stroke()
-    ctx.textAlign = 'center'
-    ctx.font = `500 9px ${MONO}`
-    spaced(2)
-    ctx.fillStyle = 'rgba(150,88,47,0.9)'
-    ctx.fillText('PASILLO', l.x + l.w / 2, l.y + l.h + 20)
-    spaced(0)
-  }
-
-  function drawPlant(x: number, y: number) {
-    ctx.fillStyle = C.chair
-    ctx.beginPath()
-    ctx.arc(x, y, 15, 0, Math.PI * 2)
-    ctx.fill()
-    ctx.fillStyle = '#25382c'
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2
-      ctx.beginPath()
-      ctx.arc(x + Math.cos(a) * 10, y + Math.sin(a) * 10, 10, 0, Math.PI * 2)
-      ctx.fill()
-    }
-    ctx.fillStyle = '#2f4a37'
-    ctx.beginPath()
-    ctx.arc(x, y, 8, 0, Math.PI * 2)
-    ctx.fill()
   }
 
   function drawAvatar(
