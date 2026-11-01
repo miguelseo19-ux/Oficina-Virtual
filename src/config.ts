@@ -14,9 +14,9 @@ export interface Person {
 }
 
 export const PEOPLE: Person[] = [
-  {id: 'miguel', name: 'Miguel Marin', role: 'CEO', color: '#b8693a', desk: 1, sprite: 'Adam'},
+  {id: 'miguel', name: 'Miguel Marin', role: 'CEO', color: '#b8693a', desk: 1, sprite: 'Bob'},
   {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#4f7ea6', desk: 2, sprite: 'Alex'},
-  {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3, sprite: 'Bob'},
+  {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3, sprite: 'Adam'},
   {id: 'carina', name: 'Carina', role: 'Project Manager', color: '#8a6bb8', desk: 4, sprite: 'Amelia'},
   {id: 'agus', name: 'Agus', role: 'Editor', color: '#c9a04f', desk: 5, sprite: 'Alex_b'}
 ]
