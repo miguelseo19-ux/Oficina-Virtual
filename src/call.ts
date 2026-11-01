@@ -433,14 +433,14 @@ export class Call {
     this.micOn = !this.micOn
     this.local?.getAudioTracks().forEach(t => (t.enabled = this.micOn))
     this.btnMic.classList.toggle('off', !this.micOn)
-    this.btnMic.title = this.micOn ? 'Silenciar micrófono' : 'Activar micrófono'
+    this.btnMic.dataset.tip = this.micOn ? 'Silenciar · M' : 'Activar micrófono · M'
   }
 
   toggleCam() {
     this.camOn = !this.camOn
     if (this.camTrack) this.camTrack.enabled = this.camOn
     this.btnCam.classList.toggle('off', !this.camOn)
-    this.btnCam.title = this.camOn ? 'Apagar cámara' : 'Encender cámara'
+    this.btnCam.dataset.tip = this.camOn ? 'Apagar cámara · V' : 'Encender cámara · V'
   }
 
   async toggleScreen() {

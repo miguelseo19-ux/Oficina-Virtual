@@ -239,43 +239,60 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
 }
 #pill {
   display: flex; align-items: center; gap: 2px; padding: 6px;
-  background: var(--glass); backdrop-filter: blur(22px) saturate(130%);
-  border: 1px solid var(--hairline); border-radius: 999px;
-  box-shadow: 0 18px 40px -12px rgba(150, 88, 47, 0.25);
+  background: #ffffff; color: #020003;
+  border-radius: 999px;
+  box-shadow: 0 20px 44px -14px rgba(150, 88, 47, 0.55), 0 2px 10px rgba(0, 0, 0, 0.35);
 }
-#pill button { color: var(--muted); width: 40px; height: 40px; border-radius: 999px; display: grid; place-items: center; }
-#pill button:hover { background: var(--ghost-hover); color: var(--fg); }
-#pill button.on { background: var(--magenta); color: #fff; }
-#pill button.off { background: rgba(250, 70, 22, 0.14); color: var(--accent-warm); }
+#pill button { color: rgba(2, 0, 3, 0.62); width: 42px; height: 42px; border-radius: 999px; display: grid; place-items: center; }
+#pill button:hover { background: rgba(2, 0, 3, 0.06); color: #020003; }
+#pill button:active { transform: scale(0.94); }
+#pill button.on { background: var(--magenta); color: #fff; box-shadow: 0 8px 20px -6px rgba(150, 88, 47, 0.6); }
+#pill button.off { background: rgba(250, 70, 22, 0.12); color: var(--accent-warm); }
+#pill [data-tip] { position: relative; }
+#pill [data-tip]::after {
+  content: attr(data-tip); position: absolute; bottom: calc(100% + 12px); left: 50%;
+  transform: translate(-50%, 4px); opacity: 0; pointer-events: none; white-space: nowrap;
+  background: #020003; color: #fff; padding: 5px 9px; border-radius: 8px;
+  font: 500 10px var(--mono); letter-spacing: 0.12em; text-transform: uppercase;
+  border: 1px solid var(--hairline); transition: opacity 150ms, transform 200ms var(--ease);
+}
+#pill [data-tip]:hover::after { opacity: 1; transform: translate(-50%, 0); transition-delay: 250ms; }
+#pill-wrap:has(.menu:not([hidden])) [data-tip]::after { display: none; }
 #pill .i-off { display: none; }
 #pill .off .i-on { display: none; }
 #pill .off .i-off { display: inline-flex; }
-#pill .sep { width: 1px; height: 24px; background: var(--hairline); margin: 0 6px; }
-#pill .split { display: inline-flex; align-items: center; }
-#pill .split .caret { width: 22px; height: 40px; margin-left: -4px; color: var(--subtle); }
-#pill .split .caret:hover { color: var(--fg); background: none; }
-#pill-me { position: relative; width: 44px !important; }
-#pill-me .avatar { width: 34px; height: 34px; }
-#me-dot { position: absolute; right: 3px; bottom: 3px; }
+#pill .sep { width: 1px; height: 24px; background: rgba(2, 0, 3, 0.1); margin: 0 6px; }
+#pill .split { display: inline-flex; align-items: center; border-radius: 999px; }
+#pill .split:hover { background: rgba(2, 0, 3, 0.04); }
+#pill .split .caret { width: 22px; height: 42px; margin-left: -4px; color: rgba(2, 0, 3, 0.35); }
+#pill .split .caret:hover { color: #020003; background: none; }
+#pill-me { position: relative; width: 46px !important; }
+#pill-me .avatar { width: 34px; height: 34px; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(2, 0, 3, 0.12); }
+#me-dot { position: absolute; right: 4px; bottom: 4px; border-color: #fff; }
 .sdot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--bg); flex: none; }
+
+/* Menús que salen de la burbuja: también claros, para que se lean como parte de ella */
 .menu {
-  background: var(--glass); backdrop-filter: blur(22px) saturate(130%);
-  border: 1px solid var(--hairline); border-radius: 16px; padding: 6px;
-  box-shadow: 0 18px 40px -12px rgba(150, 88, 47, 0.3);
+  background: #ffffff; color: #020003;
+  border-radius: 16px; padding: 6px;
+  box-shadow: 0 20px 44px -14px rgba(150, 88, 47, 0.5), 0 2px 10px rgba(0, 0, 0, 0.3);
   display: grid; gap: 2px; min-width: 230px;
 }
-.menu button { text-align: left; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; font-size: 14px; }
-.menu button:hover, .menu button.sel { background: var(--ghost-hover); }
+.menu .sdot { border-color: #fff; }
+.menu button { text-align: left; display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 10px; font-size: 14px; font-weight: 500; }
+.menu button:hover { background: rgba(2, 0, 3, 0.05); }
+.menu button.sel { background: rgba(150, 88, 47, 0.12); color: #6e3f20; }
 .menu.row { display: flex; min-width: 0; border-radius: 999px; padding: 4px 6px; }
 .menu.row button { font-size: 22px; padding: 6px 8px; border-radius: 999px; }
-.menu.row button:hover { transform: translateY(-2px); }
+.menu.row button:hover { transform: translateY(-3px) scale(1.12); background: none; }
 #devices { gap: 10px; padding: 14px; min-width: 300px; }
 #devices .eyebrow { margin-bottom: 2px; }
-#devices label { display: grid; gap: 4px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); }
+#devices label { display: grid; gap: 4px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(2, 0, 3, 0.55); }
 #devices select {
-  font: 13px var(--sans); letter-spacing: 0; text-transform: none; color: var(--fg);
-  background: rgba(255, 255, 255, 0.04); border: 1px solid var(--hairline); border-radius: 8px; padding: 8px 10px; min-width: 0; width: 100%;
+  font: 13px var(--sans); letter-spacing: 0; text-transform: none; color: #020003; color-scheme: light;
+  background: #f6f4f3; border: 1px solid rgba(2, 0, 3, 0.1); border-radius: 8px; padding: 8px 10px; min-width: 0; width: 100%;
 }
+#devices select:focus { outline: none; border-color: var(--magenta); }
 
 /* ── Llamada ─────────────────────────────────────────────── */
 #call {
@@ -344,7 +361,7 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
   #call { width: auto; max-height: 40vh; border-left: 0; border-top: 1px solid var(--hairline); }
   #tiles { grid-template-columns: 1fr 1fr; }
   #pill { padding: 4px; }
-  #pill button { width: 36px; height: 36px; }
+  #pill button { width: 38px; height: 38px; }
   #pill .split .caret { display: none; }
   #pill .sep { margin: 0 2px; }
 }

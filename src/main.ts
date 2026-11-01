@@ -87,6 +87,11 @@ function start(me: Person, key: string) {
   $('login').hidden = true
   $('app').hidden = false
   hydrateIcons()
+  // etiquetas rápidas en la burbuja (reemplazan al tooltip lento del navegador)
+  for (const b of document.querySelectorAll<HTMLElement>('#pill button[title]')) {
+    b.dataset.tip = b.title.replace(/ \((.+)\)$/, ' · $1')
+    b.removeAttribute('title')
+  }
 
   const canvas = $<HTMLCanvasElement>('world')
   const ctx = canvas.getContext('2d')!
@@ -105,7 +110,7 @@ function start(me: Person, key: string) {
   let status: Status = manualStatus
   function renderStatusUI() {
     $('me-dot').style.background = STATUS_COLOR[status]
-    $('pill-me').title = `Tu estado: ${STATUS_LABEL[status]} (B)`
+    $('pill-me').dataset.tip = `${STATUS_LABEL[status][0].toUpperCase()}${STATUS_LABEL[status].slice(1)} · B`
     for (const b of document.querySelectorAll<HTMLButtonElement>('#status-menu [data-status]')) {
       b.classList.toggle('sel', b.dataset.status === manualStatus)
     }
