@@ -86,9 +86,9 @@ de caminar (4 direcciones).
   - **Sala de juntas**: mesa de conferencias para el equipo. Entrar = unirse a
     la **videollamada grupal** de la sala.
   - **Zona social**: cocina, bar con banquetas y zona de juegos (pool, arcade,
-    puffs, dardos). Es **decorativa**: no abre llamada.
+    puffs, dardos). No tiene llamada de sala: se charla por cercanía.
 
-Las salas con llamada están en `ROOMS` y las zonas decorativas en `AREAS`
+Las salas con llamada están en `ROOMS` y las zonas sin llamada de sala en `AREAS`
 (`src/map.ts`).
 
 ## Pantalla

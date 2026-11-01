@@ -752,7 +752,7 @@ function start(me: Person, key: string) {
     for (const d of DESKS) drawDeskState(d.num, occupancy.get(d.num) ?? 0, !!deskOwner(d.num) && online.has(deskOwner(d.num)!.id), now)
     for (const d of DESKS) drawPlate(d.num)
     for (const r of ROOMS) drawRoom(r, occupancy.get(r.id) ?? 0, now)
-    for (const a of AREAS) drawRoomPlate(a.name.toUpperCase(), 'SOLO DECORACIÓN · SIN LLAMADA', a.plate.x, a.plate.y, false)
+    for (const a of AREAS) drawRoomPlate(a.name.toUpperCase(), 'SIN SALA · CHARLA POR CERCANÍA', a.plate.x, a.plate.y, false)
 
     const all: {x: number; y: number; person: Person | undefined; self: boolean; moving: boolean; status: Status; dir: Dir}[] = []
     for (const p of net.players.values()) {
