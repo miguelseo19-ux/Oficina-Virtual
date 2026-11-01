@@ -31,7 +31,13 @@
           <span id="me-avatar" class="avatar"></span>
           <span id="me-name"></span>
         </div>
+        <select id="status-select" title="Tu estado">
+          <option value="available">🟢 Disponible</option>
+          <option value="busy">🔴 Ocupado (no molestar)</option>
+          <option value="away">🟡 Ausente</option>
+        </select>
         <button id="btn-home">🪑 Ir a mi escritorio</button>
+        <button id="btn-chat">💬 Chat <span id="chat-badge" class="badge" hidden></span></button>
         <h2>Equipo</h2>
         <ul id="roster"></ul>
         <div class="spacer"></div>
@@ -41,8 +47,26 @@
 
       <div id="stage">
         <canvas id="world"></canvas>
-        <div id="help">⬆️⬇️⬅️➡️ o WASD para moverte · también podés hacer clic en el mapa · parate en la alfombra de un escritorio para hablar</div>
+        <div id="help">⬆️⬇️⬅️➡️ o WASD para moverte · clic en el mapa para caminar · alfombra de un escritorio = llamada · Enter = chat</div>
         <div id="toasts"></div>
+
+        <section id="chat" hidden>
+          <header>
+            <strong>💬 Chat</strong>
+            <button id="chat-close" title="Cerrar (Esc)">✕</button>
+          </header>
+          <div class="chat-body">
+            <nav id="chat-channels"></nav>
+            <div class="chat-main">
+              <div id="chat-title"></div>
+              <div id="chat-log"></div>
+              <form id="chat-form">
+                <input id="chat-input" maxlength="1000" autocomplete="off" placeholder="Escribí un mensaje y Enter…" />
+                <button type="submit">Enviar</button>
+              </form>
+            </div>
+          </div>
+        </section>
       </div>
 
       <section id="call" hidden>

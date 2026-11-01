@@ -11,6 +11,17 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
 - Si alguien llega a tu escritorio y no estás, te avisa con sonido y
   notificación ("Ir a mi escritorio").
 - Botones para silenciar micrófono, apagar cámara y compartir pantalla.
+- El video de quien está hablando se resalta en verde.
+- **Estado**: 🟢 Disponible, 🔴 Ocupado (no molestar: no entrás ni recibís
+  llamadas y no suenan avisos) o 🟡 Ausente. Después de 10 minutos sin tocar la
+  oficina pasás a "Ausente" solo, y volvés a "Disponible" al mover el mouse.
+- **Chat** (botón 💬 o tecla Enter): canal *General* para todo el equipo,
+  *Cerca* para quienes están al lado tuyo en el mapa (aparece como globito
+  sobre el personaje) y mensajes *privados*. Los mensajes llegan solo a quienes
+  están conectados en ese momento; cada uno guarda su historial en su navegador.
+- En la lista del equipo, junto a cada persona conectada:
+  👋 **saludar** (le suena un aviso), 💬 **mensaje privado** y
+  📍 **ir hasta** esa persona (si está en una alfombra, entrás a su llamada).
 
 No necesita servidores ni cuentas: el video y las posiciones viajan **directo
 entre los navegadores** (WebRTC, cifrado de punta a punta). Para encontrarse,

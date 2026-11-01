@@ -1,6 +1,8 @@
 import {getRelaySockets, joinRoom, selfId} from 'trystero'
 import {APP_ID, RELAY_URLS, ROOM_ID, TURN_SERVERS} from './config'
 
+export type Status = 'available' | 'busy' | 'away'
+
 export type PlayerState = {
   person: string
   x: number
@@ -8,6 +10,16 @@ export type PlayerState = {
   zone: number | null
   mic: boolean
   cam: boolean
+  status: Status
+}
+
+export type ChatMsg = {
+  id: string
+  ch: 'general' | 'nearby' | 'dm'
+  from: string // person id
+  to: string | null // person id (solo dm)
+  text: string
+  ts: number
 }
 
 export type RemotePlayer = PlayerState & {
@@ -25,6 +37,8 @@ export interface NetEvents {
   onLeave: (peerId: string) => void
   onStream: (stream: MediaStream, peerId: string) => void
   onError: (msg: string) => void
+  onChat: (msg: ChatMsg, peerId: string) => void
+  onWave: (fromPerson: string, peerId: string) => void
 }
 
 export class Net {
@@ -32,6 +46,8 @@ export class Net {
   readonly selfId = selfId
   readonly players = new Map<string, RemotePlayer>()
   private sendState: (s: PlayerState, opts?: {target?: string}) => Promise<unknown>
+  private chatAction: {send: (m: ChatMsg, opts?: {target?: string | string[]}) => Promise<unknown>}
+  private waveAction: {send: (m: {from: string}, opts?: {target?: string | string[]}) => Promise<unknown>}
   private last: PlayerState | null = null
   private lastSentAt = 0
 
@@ -63,6 +79,18 @@ export class Net {
     this.sendState = (s, opts) => action.send(s, opts)
     action.onMessage = (data, {peerId}) => this.receive(data, peerId)
 
+    const chat = this.room.makeAction<ChatMsg>('chat')
+    chat.onMessage = (m, {peerId}) => {
+      if (m && typeof m.text === 'string' && typeof m.from === 'string') ev.onChat(m, peerId)
+    }
+    this.chatAction = chat
+
+    const wave = this.room.makeAction<{from: string}>('wave')
+    wave.onMessage = (m, {peerId}) => {
+      if (m && typeof m.from === 'string') ev.onWave(m.from, peerId)
+    }
+    this.waveAction = wave
+
     this.room.onPeerJoin = peerId => {
       if (this.last) void this.sendState(this.last, {target: peerId})
     }
@@ -78,6 +106,7 @@ export class Net {
     const prev = this.players.get(peerId)
     const p: RemotePlayer = {
       ...s,
+      status: s.status === 'busy' || s.status === 'away' ? s.status : 'available',
       peerId,
       rx: prev?.rx ?? s.x,
       ry: prev?.ry ?? s.y,
@@ -94,10 +123,15 @@ export class Net {
       this.last.zone !== s.zone ||
       this.last.mic !== s.mic ||
       this.last.cam !== s.cam ||
+      this.last.status !== s.status ||
       Math.abs(this.last.x - s.x) > 0.5 ||
       Math.abs(this.last.y - s.y) > 0.5
     const zoneChanged =
-      !this.last || this.last.zone !== s.zone || this.last.mic !== s.mic || this.last.cam !== s.cam
+      !this.last ||
+      this.last.zone !== s.zone ||
+      this.last.mic !== s.mic ||
+      this.last.cam !== s.cam ||
+      this.last.status !== s.status
     if ((changed && now - this.lastSentAt > 80) || zoneChanged || now - this.lastSentAt > 2000) {
       this.last = {...s}
       this.lastSentAt = now
@@ -113,6 +147,21 @@ export class Net {
         this.ev.onLeave(id)
       }
     }
+  }
+
+  /** Todas las conexiones (pestañas) de una persona. */
+  peersOf(person: string): string[] {
+    return [...this.players.values()].filter(p => p.person === person).map(p => p.peerId)
+  }
+
+  /** Envía un mensaje de chat; sin `targets` va a todos. */
+  sendChat(m: ChatMsg, targets?: string[]) {
+    if (targets && targets.length === 0) return
+    void this.chatAction.send(m, targets ? {target: targets} : undefined)
+  }
+
+  sendWave(from: string, targets: string[]) {
+    if (targets.length) void this.waveAction.send({from}, {target: targets})
   }
 
   /** Cuántos servidores de señalización están conectados. */

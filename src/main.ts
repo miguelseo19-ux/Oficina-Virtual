@@ -9,12 +9,22 @@ import {
   WORLD,
   zoneAt
 } from './map'
-import {Net, type RemotePlayer} from './net'
+import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
+import {Chat} from './chat'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 const LS_USER = 'ov.user'
 const LS_KEY = 'ov.key'
+const AWAY_AFTER_MS = 10 * 60 * 1000 // 10 minutos sin actividad → ausente
+const NEAR_RADIUS = 200
+
+const STATUS_LABEL: Record<Status, string> = {
+  available: 'disponible',
+  busy: 'ocupado (no molestar)',
+  away: 'ausente'
+}
+const STATUS_COLOR: Record<Status, string> = {available: '#3bb273', busy: '#e5484d', away: '#f2c94c'}
 
 function lsGet(k: string) {
   try {
@@ -85,21 +95,81 @@ function start(me: Person, key: string) {
   let moving = false
   const keys = new Set<string>()
 
+  // ── estado (disponible / ocupado / ausente) ──
+  const LS_STATUS = `ov.status.${me.id}`
+  let manualStatus: Status = (lsGet(LS_STATUS) as Status) || 'available'
+  if (!(manualStatus in STATUS_LABEL)) manualStatus = 'available'
+  let lastActivity = Date.now()
+  let status: Status = manualStatus
+  const statusSel = $<HTMLSelectElement>('status-select')
+  statusSel.value = manualStatus
+  statusSel.onchange = () => {
+    manualStatus = statusSel.value as Status
+    lsSet(LS_STATUS, manualStatus)
+    lastActivity = Date.now()
+    refreshStatus()
+    statusSel.blur()
+  }
+  const markActive = () => {
+    lastActivity = Date.now()
+    if (status === 'away' && manualStatus === 'available') refreshStatus()
+  }
+  for (const ev of ['keydown', 'pointerdown', 'pointermove', 'wheel']) {
+    window.addEventListener(ev, markActive, {passive: true})
+  }
+  document.addEventListener('visibilitychange', () => !document.hidden && markActive())
+
+  function computeStatus(): Status {
+    if (manualStatus !== 'available') return manualStatus
+    const inConversation = currentZone !== null && call?.active && !$('call').hidden
+    if (!inConversation && Date.now() - lastActivity > AWAY_AFTER_MS) return 'away'
+    return 'available'
+  }
+  function refreshStatus() {
+    const next = computeStatus()
+    if (next === status) return
+    status = next
+    statusSel.value = status
+    statusSel.dataset.status = status
+    call.reconcile()
+    renderRoster()
+  }
+
   const net = new Net(key, {
     onPlayer: (p, prevZone) => {
       if (p.zone === me.desk && prevZone !== me.desk && currentZone !== me.desk) knock(p)
       call.reconcile()
       renderRoster()
+      chat.refresh()
     },
     onLeave: id => {
       call.onPeerGone(id)
       renderRoster()
+      chat.refresh()
     },
     onStream: (stream, id) => call.onRemoteStream(stream, id),
-    onError: msg => toast(msg)
+    onError: msg => toast(msg),
+    onChat: m => chat.receive(m),
+    onWave: from => receiveWave(from)
   })
-  const call = new Call(net, me.id, zoneLabel)
   let currentZone: number | null = null
+  const call = new Call(net, me.id, zoneLabel, () => status)
+  statusSel.dataset.status = status
+
+  // burbujas de chat "cerca" sobre los personajes
+  const bubbles = new Map<string, {text: string; until: number}>()
+  const chat = new Chat(me, net, {
+    nearbyPeers: () =>
+      [...net.players.values()]
+        .filter(p => (currentZone !== null && p.zone === currentZone) || Math.hypot(p.x - pos.x, p.y - pos.y) < NEAR_RADIUS)
+        .map(p => p.peerId),
+    onNearbyMessage: (from, text) => bubbles.set(from, {text, until: performance.now() + 6000}),
+    onDirectMessage: (from, text, open) => {
+      if (status !== 'busy') beep(660)
+      toast(`💬 ${from.name}: ${text.length > 80 ? text.slice(0, 80) + '…' : text}`, [{label: 'Responder', fn: open}])
+      notify(`💬 ${from.name}`, text, open)
+    }
+  })
 
   window.addEventListener('beforeunload', () => net.leave())
 
@@ -117,6 +187,11 @@ function start(me: Person, key: string) {
   const keyName = (e: KeyboardEvent) => (e.key.length === 1 ? e.key.toLowerCase() : e.key)
   window.addEventListener('keydown', e => {
     if ((e.target as HTMLElement).closest('input,select,textarea')) return
+    if (e.key === 'Enter') {
+      chat.open()
+      e.preventDefault()
+      return
+    }
     const k = keyName(e)
     if (MOVE_KEYS[k]) {
       keys.add(k)
@@ -146,6 +221,43 @@ function start(me: Person, key: string) {
     pos.x = myDesk.seat.x
     pos.y = myDesk.seat.y
     target = null
+  }
+
+  /** Aparecer al lado de una persona (si está en una alfombra, entrás a su llamada). */
+  function goTo(personId: string) {
+    const p = [...net.players.values()].find(pl => pl.person === personId)
+    if (!p) return
+    const offsets = [
+      [0, 40], [40, 0], [-40, 0], [0, -40], [40, 40], [-40, 40], [40, -40], [-40, -40], [0, 70], [70, 0], [-70, 0]
+    ]
+    for (const [ox, oy] of offsets) {
+      const x = p.x + ox
+      const y = p.y + oy
+      if (!collides(x, y)) {
+        pos.x = x
+        pos.y = y
+        target = null
+        return
+      }
+    }
+    target = {x: p.x, y: p.y}
+  }
+
+  function wave(personId: string) {
+    const name = personById(personId)?.name ?? ''
+    net.sendWave(me.id, net.peersOf(personId))
+    toast(`👋 Saludaste a ${name}`)
+  }
+
+  function receiveWave(fromId: string) {
+    const from = personById(fromId)
+    if (!from) return
+    if (status !== 'busy') beep(990)
+    toast(`👋 ${from.name} te saluda`, [
+      {label: 'Ir', fn: () => goTo(from.id)},
+      {label: 'Responder', fn: () => chat.openDM(from.id)}
+    ])
+    notify('👋 Te saludan', `${from.name} te saluda`, () => goTo(from.id))
   }
 
   // ── cámara / viewport ──
@@ -219,14 +331,15 @@ function start(me: Person, key: string) {
     if (z !== currentZone) {
       currentZone = z
       call.setZone(z)
+      if (z !== null) {
+        const busy = [...net.players.values()].filter(p => p.zone === z && p.status === 'busy')
+        for (const b of busy) toast(`🔴 ${personById(b.person)?.name ?? 'Alguien'} está ocupado (no molestar)`)
+      }
       document.title = z ? '● En llamada — Oficina virtual' : 'Oficina virtual'
       renderRoster()
     }
 
-    net.update(
-      {person: me.id, x: Math.round(pos.x), y: Math.round(pos.y), zone: currentZone, mic: call.micOn, cam: call.sendingVideo},
-      now
-    )
+    net.update(myState(), now)
 
     // interpolación de los demás
     const k = 1 - Math.pow(0.0001, dt)
@@ -238,6 +351,7 @@ function start(me: Person, key: string) {
     if (now - lastSlow > 1000) {
       lastSlow = now
       renderNetStatus()
+      refreshStatus()
       net.prune(now)
       call.tick()
     }
@@ -247,14 +361,24 @@ function start(me: Person, key: string) {
     requestAnimationFrame(step)
   }
 
+  function myState() {
+    return {
+      person: me.id,
+      x: Math.round(pos.x),
+      y: Math.round(pos.y),
+      zone: currentZone,
+      mic: call.micOn,
+      cam: call.sendingVideo,
+      status
+    }
+  }
+
   // latido aunque la pestaña esté en segundo plano (rAF se pausa ahí)
   setInterval(() => {
     if (document.hidden) {
       const now = performance.now()
-      net.update(
-        {person: me.id, x: Math.round(pos.x), y: Math.round(pos.y), zone: currentZone, mic: call.micOn, cam: call.sendingVideo},
-        now
-      )
+      net.update(myState(), now)
+      refreshStatus()
       net.prune(now)
       call.tick()
     }
@@ -280,19 +404,25 @@ function start(me: Person, key: string) {
     drawLounge()
     for (const pl of PLANTS) drawPlant(pl.x + pl.w / 2, pl.y + pl.h / 2)
 
-    const all: {x: number; y: number; person: Person | undefined; self: boolean; moving: boolean}[] = []
+    const all: {x: number; y: number; person: Person | undefined; self: boolean; moving: boolean; status: Status}[] = []
     for (const p of net.players.values()) {
       all.push({
         x: p.rx,
         y: p.ry,
         person: personById(p.person),
         self: false,
-        moving: Math.hypot(p.x - p.rx, p.y - p.ry) > 1
+        moving: Math.hypot(p.x - p.rx, p.y - p.ry) > 1,
+        status: p.status
       })
     }
-    all.push({x: pos.x, y: pos.y, person: me, self: true, moving})
+    all.push({x: pos.x, y: pos.y, person: me, self: true, moving, status})
     all.sort((a, b) => a.y - b.y)
-    for (const a of all) drawAvatar(a.x, a.y, a.person, a.self, a.moving, now)
+    for (const a of all) drawAvatar(a.x, a.y, a.person, a.self, a.moving, now, a.status)
+    for (const a of all) {
+      const b = a.person && bubbles.get(a.person.id)
+      if (b && b.until > now) drawBubble(a.x, a.y, b.text)
+      else if (b && a.person) bubbles.delete(a.person.id)
+    }
 
     if (target) {
       ctx.strokeStyle = 'rgba(255,255,255,.6)'
@@ -411,9 +541,19 @@ function start(me: Person, key: string) {
     }
   }
 
-  function drawAvatar(x: number, y: number, p: Person | undefined, self: boolean, mov: boolean, now: number) {
+  function drawAvatar(
+    x: number,
+    y: number,
+    p: Person | undefined,
+    self: boolean,
+    mov: boolean,
+    now: number,
+    st: Status
+  ) {
     const color = p?.color ?? '#888'
     const bob = mov ? Math.abs(Math.sin(self ? walkPhase : now / 80)) * 3 : 0
+    ctx.save()
+    if (st === 'away') ctx.globalAlpha = 0.5
     ctx.fillStyle = 'rgba(0,0,0,.2)'
     ctx.beginPath()
     ctx.ellipse(x, y + 14, 14, 5, 0, 0, Math.PI * 2)
@@ -438,6 +578,49 @@ function start(me: Person, key: string) {
     ctx.fill()
     ctx.fillStyle = '#fff'
     ctx.fillText(name, x, y - bob - 29)
+    // indicador de estado
+    ctx.globalAlpha = 1
+    ctx.fillStyle = STATUS_COLOR[st]
+    ctx.beginPath()
+    ctx.arc(x + 12, y - bob + 11, 6, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.lineWidth = 2
+    ctx.strokeStyle = '#fff'
+    ctx.stroke()
+    if (st === 'away') {
+      ctx.fillStyle = '#2b2f3a'
+      ctx.font = '700 11px system-ui, sans-serif'
+      ctx.fillText('z', x + 22, y - bob - 6)
+    }
+    ctx.restore()
+  }
+
+  function drawBubble(x: number, y: number, text: string) {
+    const t = text.length > 60 ? text.slice(0, 60) + '…' : text
+    ctx.font = '13px system-ui, sans-serif'
+    const w = Math.min(260, ctx.measureText(t).width + 18)
+    const h = 26
+    const bx = x - w / 2
+    const by = y - 80
+    ctx.fillStyle = '#fff'
+    ctx.strokeStyle = 'rgba(0,0,0,.15)'
+    ctx.lineWidth = 1
+    roundRect(bx, by, w, h, 12)
+    ctx.fill()
+    ctx.stroke()
+    ctx.beginPath()
+    ctx.moveTo(x - 6, by + h)
+    ctx.lineTo(x, by + h + 7)
+    ctx.lineTo(x + 6, by + h)
+    ctx.fill()
+    ctx.fillStyle = '#1f222b'
+    ctx.textAlign = 'center'
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(bx + 6, by, w - 12, h)
+    ctx.clip()
+    ctx.fillText(t, x, by + 17)
+    ctx.restore()
   }
 
   function roundRect(x: number, y: number, w: number, h: number, r: number) {
@@ -466,17 +649,35 @@ function start(me: Person, key: string) {
         const rp = online.get(p.id)
         const here = isMe || !!rp
         const zone = isMe ? currentZone : rp?.zone
+        const st: Status | null = isMe ? status : (rp?.status ?? null)
         li.className = here ? 'on' : 'off'
-        const status = !here ? 'desconectado' : zone ? (zone === p.desk ? 'en su escritorio · en llamada' : `en llamada · ${zoneLabel(zone)}`) : 'conectado'
-        li.innerHTML = `<span class="dot" style="background:${p.color}"></span><span class="n"></span><span class="s"></span>`
+        let text = 'desconectado'
+        if (here && st) {
+          const where = zone ? (zone === p.desk ? 'en su escritorio' : zoneLabel(zone)) : 'en el pasillo'
+          text = `${STATUS_LABEL[st]} · ${where}`
+        }
+        li.innerHTML = `<span class="dot"></span><span class="n"></span><span class="s"></span><span class="acts"></span>`
+        const dot = li.querySelector('.dot') as HTMLElement
+        dot.style.background = p.color
+        if (here && st) dot.style.boxShadow = `0 0 0 2px var(--panel), 0 0 0 4px ${STATUS_COLOR[st]}`
         li.querySelector('.n')!.textContent = isMe ? `${p.name} (vos)` : p.name
-        li.querySelector('.s')!.textContent = status
+        li.querySelector('.s')!.textContent = text
         if (!isMe && rp) {
-          li.title = `Ir a donde está ${p.name}`
-          li.classList.add('click')
-          li.onclick = () => {
-            target = {x: rp.x, y: rp.y + 30}
+          const acts = li.querySelector('.acts')!
+          const mk = (icon: string, title: string, fn: () => void) => {
+            const b = document.createElement('button')
+            b.className = 'act'
+            b.textContent = icon
+            b.title = title
+            b.onclick = e => {
+              e.stopPropagation()
+              fn()
+            }
+            acts.appendChild(b)
           }
+          mk('👋', `Saludar a ${p.name}`, () => wave(p.id))
+          mk('💬', `Mensaje a ${p.name}`, () => chat.openDM(p.id))
+          mk('📍', `Ir hasta ${p.name}`, () => goTo(p.id))
         }
         return li
       })
@@ -487,37 +688,46 @@ function start(me: Person, key: string) {
   // ── avisos ──
   function knock(p: RemotePlayer) {
     const who = personById(p.person)?.name ?? 'Alguien'
+    if (status === 'busy') {
+      toast(`${who} pasó por tu escritorio (estás en no molestar)`, [{label: 'Ir a mi escritorio', fn: goHome}])
+      return
+    }
     beep()
-    toast(`${who} está en tu escritorio`, 'Ir a mi escritorio', goHome)
-    if (document.hidden && 'Notification' in window && Notification.permission === 'granted') {
-      try {
-        const n = new Notification('Oficina virtual', {body: `${who} está en tu escritorio`})
-        n.onclick = () => {
-          window.focus()
-          goHome()
-          n.close()
-        }
-      } catch {
-        /* ignore */
+    toast(`${who} está en tu escritorio`, [{label: 'Ir a mi escritorio', fn: goHome}])
+    notify('Oficina virtual', `${who} está en tu escritorio`, goHome)
+  }
+
+  /** Notificación del sistema solo si la pestaña está en segundo plano y no estás ocupado. */
+  function notify(title: string, body: string, onClick: () => void) {
+    if (!document.hidden || status === 'busy') return
+    if (!('Notification' in window) || Notification.permission !== 'granted') return
+    try {
+      const n = new Notification(title, {body})
+      n.onclick = () => {
+        window.focus()
+        onClick()
+        n.close()
       }
+    } catch {
+      /* ignore */
     }
   }
 
   requestAnimationFrame(step)
 }
 
-function toast(msg: string, action?: string, onAction?: () => void) {
+function toast(msg: string, actions: {label: string; fn: () => void}[] = []) {
   const box = $('toasts')
   const el = document.createElement('div')
   el.className = 'toast'
   const span = document.createElement('span')
   span.textContent = msg
   el.appendChild(span)
-  if (action && onAction) {
+  for (const a of actions) {
     const b = document.createElement('button')
-    b.textContent = action
+    b.textContent = a.label
     b.onclick = () => {
-      onAction()
+      a.fn()
       el.remove()
     }
     el.appendChild(b)
@@ -527,12 +737,12 @@ function toast(msg: string, action?: string, onAction?: () => void) {
 }
 
 let audioCtx: AudioContext | null = null
-function beep() {
+function beep(freq = 880) {
   try {
     audioCtx ??= new AudioContext()
     const o = audioCtx.createOscillator()
     const g = audioCtx.createGain()
-    o.frequency.value = 880
+    o.frequency.value = freq
     g.gain.setValueAtTime(0.0001, audioCtx.currentTime)
     g.gain.exponentialRampToValueAtTime(0.2, audioCtx.currentTime + 0.02)
     g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.4)

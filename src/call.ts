@@ -1,5 +1,5 @@
 import {initials, personById} from './config'
-import type {Net, RemotePlayer} from './net'
+import type {Net, RemotePlayer, Status} from './net'
 
 /**
  * Videollamada por proximidad.
@@ -26,11 +26,18 @@ export class Call {
   private btnScreen = document.getElementById('btn-screen') as HTMLButtonElement
   private notice = document.getElementById('call-notice')!
 
+  private analysers = new Map<string, {stream: MediaStream; an: AnalyserNode; src: MediaStreamAudioSourceNode}>()
+  private audioCtx: AudioContext | null = null
+  private levels = new Uint8Array(2048)
+  private lastSpoke = new Map<string, number>()
+
   constructor(
     private net: Net,
     private me: string,
-    private zoneLabel: (n: number) => string
+    private zoneLabel: (n: number) => string,
+    private myStatus: () => Status
   ) {
+    setInterval(() => this.updateSpeaking(), 100)
     this.btnMic.onclick = () => this.toggleMic()
     this.btnCam.onclick = () => this.toggleCam()
     this.btnScreen.onclick = () => void this.toggleScreen()
@@ -99,8 +106,11 @@ export class Call {
    */
   reconcile() {
     const desired = new Set<string>()
-    if (this.zone !== null) {
-      for (const p of this.net.players.values()) if (p.zone === this.zone) desired.add(p.peerId)
+    // "Ocupado" = no molestar: no entra ni recibe llamadas
+    if (this.zone !== null && this.myStatus() !== 'busy') {
+      for (const p of this.net.players.values()) {
+        if (p.zone === this.zone && p.status !== 'busy') desired.add(p.peerId)
+      }
     }
 
     if (desired.size > 0) {
@@ -116,7 +126,7 @@ export class Call {
       if ((this.local || this.acquiring) && this.releaseTimer === null) {
         this.releaseTimer = window.setTimeout(() => {
           this.releaseTimer = null
-          if (this.zone !== null && ![...this.net.players.values()].some(p => p.zone === this.zone)) {
+          if (this.zone !== null && this.desiredEmpty()) {
             this.releaseMedia()
           }
         }, 4000)
@@ -144,6 +154,11 @@ export class Call {
       }
     }
     if (desired.size > 0) this.render(desired)
+  }
+
+  private desiredEmpty() {
+    if (this.myStatus() === 'busy') return true
+    return ![...this.net.players.values()].some(p => p.zone === this.zone && p.status !== 'busy')
   }
 
   onRemoteStream(stream: MediaStream, peerId: string) {
@@ -183,6 +198,60 @@ export class Call {
     this.releaseMedia()
     this.panel.hidden = true
     this.tiles.replaceChildren()
+    for (const k of [...this.analysers.keys()]) this.dropAnalyser(k)
+  }
+
+  // ── indicador de quién habla ───────────────────────────────
+
+  private dropAnalyser(key: string) {
+    const a = this.analysers.get(key)
+    if (!a) return
+    try {
+      a.src.disconnect()
+    } catch {
+      /* ignore */
+    }
+    this.analysers.delete(key)
+  }
+
+  private updateSpeaking() {
+    if (this.panel.hidden) return
+    for (const tile of [...this.tiles.children] as HTMLElement[]) {
+      const key = tile.dataset.key!
+      const stream = (tile.querySelector('video') as HTMLVideoElement).srcObject as MediaStream | null
+      const muted = tile.classList.contains('muted')
+      if (!stream || !stream.getAudioTracks().length) {
+        tile.classList.remove('speaking')
+        continue
+      }
+      let a = this.analysers.get(key)
+      if (a && a.stream !== stream) {
+        this.dropAnalyser(key)
+        a = undefined
+      }
+      if (!a) {
+        try {
+          this.audioCtx ??= new AudioContext()
+          if (this.audioCtx.state === 'suspended') void this.audioCtx.resume()
+          const src = this.audioCtx.createMediaStreamSource(stream)
+          const an = this.audioCtx.createAnalyser()
+          an.fftSize = 2048
+          src.connect(an)
+          a = {stream, an, src}
+          this.analysers.set(key, a)
+        } catch {
+          continue
+        }
+      }
+      a.an.getByteTimeDomainData(this.levels)
+      let sum = 0
+      for (const v of this.levels) sum += (v - 128) ** 2
+      const rms = Math.sqrt(sum / this.levels.length)
+      const now = performance.now()
+      if (!muted && rms > 6) this.lastSpoke.set(key, now)
+      // mantiene el resaltado 600ms para que no parpadee entre palabras
+      tile.classList.toggle('speaking', !muted && now - (this.lastSpoke.get(key) ?? 0) < 600)
+    }
   }
 
   // ── controles ──────────────────────────────────────────────
@@ -321,6 +390,7 @@ export class Call {
     for (const el of existing.values()) {
       const v = el.querySelector('video')
       if (v) v.srcObject = null
+      this.dropAnalyser(el.dataset.key!)
       el.remove()
     }
     const n = others.length
