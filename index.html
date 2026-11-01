@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Oficina virtual</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>" />
+  </head>
+  <body>
+    <!-- Login -->
+    <section id="login">
+      <form id="login-form" class="card">
+        <h1>🏢 Oficina virtual</h1>
+        <p class="muted">Movete por la oficina y acercate a un escritorio para hablar con esa persona.</p>
+        <label>¿Quién sos?
+          <select id="login-user" required></select>
+        </label>
+        <label>Clave de la oficina
+          <input id="login-key" type="password" autocomplete="current-password" placeholder="La misma para todo el equipo" required />
+        </label>
+        <p id="login-error" class="error"></p>
+        <button type="submit">Entrar</button>
+        <p class="hint">El navegador te va a pedir permiso de cámara y micrófono la primera vez que alguien se acerque.</p>
+      </form>
+    </section>
+
+    <!-- App -->
+    <main id="app" hidden>
+      <aside id="sidebar">
+        <div id="me">
+          <span id="me-avatar" class="avatar"></span>
+          <span id="me-name"></span>
+        </div>
+        <button id="btn-home">🪑 Ir a mi escritorio</button>
+        <h2>Equipo</h2>
+        <ul id="roster"></ul>
+        <div class="spacer"></div>
+        <button id="btn-logout" class="link">Salir</button>
+      </aside>
+
+      <div id="stage">
+        <canvas id="world"></canvas>
+        <div id="help">⬆️⬇️⬅️➡️ o WASD para moverte · también podés hacer clic en el mapa · parate en la alfombra de un escritorio para hablar</div>
+        <div id="toasts"></div>
+      </div>
+
+      <section id="call" hidden>
+        <header>
+          <span class="live">● En llamada</span>
+          <strong id="call-title"></strong>
+        </header>
+        <div id="tiles"></div>
+        <p id="call-notice"></p>
+        <footer>
+          <button id="btn-mic" title="Silenciar micrófono">🎙️</button>
+          <button id="btn-cam" title="Apagar cámara">📷</button>
+          <button id="btn-screen" title="Compartir pantalla">🖥️</button>
+          <span class="muted small">Alejate de la alfombra para cortar</span>
+        </footer>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

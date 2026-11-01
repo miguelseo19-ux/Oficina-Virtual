@@ -1,0 +1,176 @@
+:root {
+  --bg: #1f222b;
+  --panel: #2b2f3a;
+  --panel-2: #353a47;
+  --text: #f2f3f5;
+  --muted: #a6abb6;
+  --accent: #4f8cff;
+  --danger: #e5484d;
+  --ok: #3bb273;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  overflow: hidden;
+}
+[hidden] { display: none !important; }
+button {
+  font: inherit;
+  color: var(--text);
+  background: var(--panel-2);
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+button:hover { filter: brightness(1.15); }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+
+/* Login */
+#login { display: grid; place-items: center; height: 100%; padding: 16px; }
+.card {
+  width: min(400px, 100%);
+  background: var(--panel);
+  padding: 28px;
+  border-radius: 16px;
+  display: grid;
+  gap: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.card h1 { margin: 0; font-size: 24px; }
+.card p { margin: 0; }
+.card label { display: grid; gap: 6px; font-weight: 600; }
+.card select, .card input {
+  font: inherit;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #454b5a;
+  background: var(--bg);
+  color: var(--text);
+}
+.card button[type=submit] { background: var(--accent); padding: 12px; font-weight: 700; }
+.error { color: var(--danger); min-height: 1em; font-size: 13px; }
+.hint { color: var(--muted); font-size: 12px; }
+
+/* App */
+#app {
+  position: fixed; inset: 0;
+  display: grid;
+  grid-template-columns: 250px minmax(0, 1fr) auto;
+  grid-template-areas: 'side stage call';
+}
+#stage { grid-area: stage; position: relative; min-width: 0; overflow: hidden; }
+#world { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+
+#sidebar {
+  grid-area: side;
+  background: var(--panel);
+  padding: 16px 14px;
+  display: flex; flex-direction: column; gap: 10px;
+  overflow: auto;
+  border-right: 1px solid #3a3f4c;
+}
+#sidebar .spacer { flex: 1; }
+#me { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: grid; place-items: center; font-size: 12px; font-weight: 800;
+  border: 2px solid #fff;
+}
+#sidebar h2 { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+#roster { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+#roster li {
+  display: grid; grid-template-columns: 12px 1fr; column-gap: 8px;
+  padding: 6px 8px; border-radius: 8px;
+}
+#roster li.click { cursor: pointer; }
+#roster li.click:hover { background: var(--panel-2); }
+#roster .dot { width: 10px; height: 10px; border-radius: 50%; margin-top: 4px; grid-row: span 2; }
+#roster .n { font-weight: 600; }
+#roster .s { font-size: 12px; color: var(--muted); }
+#roster li.off { opacity: .45; }
+#roster li.off .dot { background: #666 !important; }
+.link { background: none; color: var(--muted); padding: 4px; justify-self: start; text-decoration: underline; }
+
+#help {
+  position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+  background: rgba(30,32,40,.85); padding: 8px 14px; border-radius: 999px;
+  font-size: 12px; color: var(--muted); white-space: nowrap; max-width: calc(100% - 24px);
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Llamada */
+#call {
+  grid-area: call;
+  width: 380px;
+  background: var(--panel);
+  border-left: 1px solid #3a3f4c;
+  padding: 14px;
+  display: flex; flex-direction: column; gap: 12px;
+  overflow: auto;
+}
+#call header { display: grid; gap: 2px; }
+.live { color: var(--ok); font-weight: 700; font-size: 12px; }
+#tiles { display: grid; grid-template-columns: 1fr; gap: 8px; }
+#tiles[data-count="2"] { grid-template-columns: 1fr; }
+#tiles[data-count="2"] .tile.self {
+  position: absolute; width: 30%; right: 20px; margin-top: 8px; z-index: 2;
+  box-shadow: 0 4px 14px rgba(0,0,0,.5);
+}
+#tiles[data-count="2"] { position: relative; }
+.tile {
+  position: relative; aspect-ratio: 16/9; background: #15171d; border-radius: 10px; overflow: hidden;
+}
+.tile video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.tile.mirror video { transform: scaleX(-1); }
+.tile .ph {
+  position: absolute; inset: 0; margin: auto; width: 56px; height: 56px; border-radius: 50%;
+  display: none; place-items: center; font-weight: 800; font-size: 18px;
+}
+.tile.novideo .ph { display: grid; }
+.tile.novideo video { opacity: 0; }
+.tile .label {
+  position: absolute; left: 6px; bottom: 6px; background: rgba(0,0,0,.6);
+  padding: 2px 8px; border-radius: 6px; font-size: 12px;
+}
+.tile.muted .label::after { content: ' 🔇'; }
+.tile.waiting::after {
+  content: 'Conectando…'; position: absolute; top: 6px; right: 8px; font-size: 11px; color: var(--muted);
+}
+#call-notice { margin: 0; font-size: 12px; color: #ffcf70; }
+#call-notice:empty { display: none; }
+#call footer { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+#call footer button { font-size: 18px; padding: 8px 14px; }
+#call footer .small { flex-basis: 100%; }
+#call footer button.off { background: var(--danger); }
+#call footer button.on { background: var(--accent); }
+
+#toasts {
+  position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%);
+  display: grid; gap: 8px; justify-items: center; width: min(460px, calc(100% - 24px));
+}
+.toast {
+  background: #fff; color: #1f222b; padding: 10px 14px; border-radius: 12px;
+  display: flex; gap: 12px; align-items: center; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+  font-weight: 600; animation: pop .2s ease-out;
+}
+.toast button { background: var(--accent); color: #fff; padding: 6px 10px; }
+@keyframes pop { from { transform: translateY(8px); opacity: 0; } }
+
+@media (max-width: 900px) {
+  #app {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'side' 'stage' 'call';
+  }
+  #sidebar { flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; padding: 8px 12px; max-height: 30vh; }
+  #sidebar h2, #roster, #sidebar .spacer { display: none; }
+  #call { width: auto; max-height: 45vh; border-left: 0; border-top: 1px solid #3a3f4c; }
+  #tiles { grid-template-columns: 1fr 1fr; }
+  #help { display: none; }
+}
