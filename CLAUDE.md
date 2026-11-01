@@ -17,6 +17,9 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
   ellos, charla por cercanía: `updateTalk()` en `main.ts` arma el set `talking`
   (mismo `areaAt`, ambos disponibles, se conecta a < `TALK_IN` y se corta a >
   `TALK_OUT`) y `Call` lo usa cuando `zone === null`.
+- **Versión nueva**: la pestaña queda abierta todo el día, así que `checkUpdate()` en `main.ts`
+  compara cada 5 min (y al volver a la pestaña) el `assets/index-*.js` publicado con el que corre
+  y, si cambió, muestra un aviso fijo con "Actualizar" (no recarga sola para no cortar llamadas).
 - Probar con 2 personas sin tocar los relays públicos: levantar un relay Nostr local
   y abrir con `?relay=ws://localhost:7777` (si no, quien esté conectado con la clave
   real ve un aviso de "otra clave").

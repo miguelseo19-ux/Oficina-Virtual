@@ -1636,10 +1636,40 @@ function start(me: Person, key: string) {
   }
   document.addEventListener('visibilitychange', () => !document.hidden && mini.onTabVisible())
 
+  // ── versión nueva publicada ──
+  // La oficina queda abierta todo el día: sin esto, los cambios no le llegan a nadie hasta que
+  // recarga. Cada 5 min (y al volver a la pestaña) compara el archivo del programa publicado con
+  // el que está corriendo; si cambió, avisa (no recarga sola para no cortar una llamada).
+  const runningBuild = document.querySelector<HTMLScriptElement>('script[type="module"][src*="assets/index-"]')?.src.split('/').pop()
+  let updateNoticed = false
+  async function checkUpdate() {
+    if (!runningBuild || updateNoticed) return
+    try {
+      const html = await (await fetch(`./index.html?v=${Date.now()}`, {cache: 'no-store'})).text()
+      const latest = html.match(/assets\/(index-[\w-]+\.js)/)?.[1]
+      if (!latest || latest === runningBuild) return
+      updateNoticed = true
+      toast(
+        'Hay una versión nueva de la oficina.',
+        [
+          {label: 'Actualizar', fn: () => location.reload()},
+          {label: 'Después', fn: () => setTimeout(() => (updateNoticed = false), 30 * 60_000)}
+        ],
+        'info',
+        0
+      )
+    } catch {
+      /* sin conexión: se vuelve a probar más tarde */
+    }
+  }
+  setInterval(() => void checkUpdate(), 5 * 60_000)
+  document.addEventListener('visibilitychange', () => !document.hidden && void checkUpdate())
+
   requestAnimationFrame(step)
 }
 
-function toast(msg: string, actions: {label: string; fn: () => void}[] = [], ic = 'info') {
+/** Aviso arriba al centro. `ms` = cuánto dura (0 = queda hasta que se toque un botón). */
+function toast(msg: string, actions: {label: string; fn: () => void}[] = [], ic = 'info', ms = 9000) {
   const box = $('toasts')
   const el = document.createElement('div')
   el.className = 'toast'
@@ -1660,7 +1690,7 @@ function toast(msg: string, actions: {label: string; fn: () => void}[] = [], ic 
     el.appendChild(b)
   }
   box.appendChild(el)
-  setTimeout(() => el.remove(), 9000)
+  if (ms > 0) setTimeout(() => el.remove(), ms)
 }
 
 let audioCtx: AudioContext | null = null
