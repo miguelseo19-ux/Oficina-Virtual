@@ -561,11 +561,11 @@ function start(me: Person, key: string) {
     canvas.width = Math.round(vw * dpr)
     canvas.height = Math.round(vh * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    // Que entre la oficina completa si hay lugar; en pantallas chicas, la cámara sigue al avatar.
-    // El tamaño de cada píxel de arte se redondea a cuartos de píxel para que el pixel art se vea nítido.
-    const fit = Math.min(vw / WORLD.w, vh / WORLD.h)
-    const z = Math.max(0.55, Math.min(fit, 1.6))
-    const artPx = Math.max(1.5, Math.floor(z * PX * 4) / 4)
+    // La oficina llena todo el lienzo, sin franjas negras: se escala hasta cubrir el alto y el
+    // ancho, y lo que no entra se recorre con la cámara, que sigue al avatar.
+    // El tamaño de cada píxel de arte se redondea HACIA ARRIBA a cuartos de píxel: nítido y sin huecos.
+    const cover = Math.max(vw / WORLD.w, vh / WORLD.h)
+    const artPx = Math.max(1.5, Math.ceil(cover * PX * 4) / 4)
     zoom = artPx / PX
   }
   new ResizeObserver(resize).observe(canvas)
