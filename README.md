@@ -27,19 +27,37 @@ cifrado con la **clave de la oficina**.
 > Quien entra con otra clave queda en una oficina separada y no ve a nadie.
 > Recomendado: Chrome, Edge o Firefox actualizados, en computadora.
 
+## Subir a GitHub y publicar (sin instalar nada)
+
+1. Descomprimir `oficina-virtual.zip`.
+2. Abrir el repo en GitHub → **Add file → Upload files**.
+3. Arrastrar **todo el contenido** de la carpeta descomprimida (la carpeta
+   `docs`, la carpeta `src` y los archivos sueltos) y tocar **Commit changes**.
+4. Ir a **Settings → Pages**:
+   - *Source*: **Deploy from a branch**
+   - *Branch*: **main** y carpeta **/docs** → **Save**
+5. En 1–2 minutos la oficina queda en
+   `https://<usuario>.github.io/<repositorio>/` (el link aparece arriba en esa
+   misma pantalla de Pages).
+
+> El repo tiene que ser **público** para usar GitHub Pages gratis. Igual nadie
+> puede entrar sin la clave de la oficina (la clave no está en el código).
+
+La carpeta `docs/` es la versión ya compilada que se publica. La carpeta `src/`
+es el código fuente.
+
 ## Agregar o cambiar personas
 
 Editar `src/config.ts` → lista `PEOPLE`. Cada persona tiene un `desk` del 1 al
-12 (1–6 fila de arriba, 7–12 fila de abajo). Al subir el cambio a `main`, la
-página se vuelve a publicar sola en ~1 minuto.
+12 (1–6 fila de arriba, 7–12 fila de abajo). Después hay que recompilar para
+actualizar `docs/`:
 
-## Publicación (GitHub Pages)
+```bash
+npm install
+npm run build
+```
 
-El workflow `.github/workflows/deploy.yml` compila y publica en cada push a
-`main`. La primera vez hay que activarlo en GitHub:
-**Settings → Pages → Source: GitHub Actions**.
-
-La URL queda como `https://<usuario>.github.io/<repositorio>/`.
+y subir la carpeta `docs/` actualizada.
 
 ## Desarrollo local
 
@@ -53,7 +71,7 @@ npm run dev
 - **No veo a nadie**: verificar que todos usen exactamente la misma clave.
 - **Veo a la persona en el mapa pero no hay video/audio**: algunas redes
   corporativas bloquean conexiones directas. Se soluciona agregando un servidor
-  TURN (por ejemplo, el plan gratuito de Cloudflare Calls TURN) en
-  `TURN_SERVERS` de `src/config.ts`.
+  TURN (por ejemplo, el plan gratuito de Cloudflare TURN) en `TURN_SERVERS` de
+  `src/config.ts`.
 - **Los relays públicos fallan**: se pueden fijar relays específicos en
   `RELAY_URLS` de `src/config.ts`.

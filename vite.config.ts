@@ -1,4 +1,5 @@
 import {defineConfig} from 'vite'
 
-// base './' para que funcione en GitHub Pages bajo /<repo>/
-export default defineConfig({base: './'})
+// Compila a /docs para que GitHub Pages lo publique directo desde la rama main.
+// base './' para que funcione bajo /<repo>/
+export default defineConfig({base: './', build: {outDir: 'docs', emptyOutDir: true}})
