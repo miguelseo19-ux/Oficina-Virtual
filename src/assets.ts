@@ -17,16 +17,22 @@ export const BODY_H = 23
 
 /**
  * Personajes propios (public/assets/personajes/<nombre>.png): misma grilla que LimeZu
- * (2 filas × 24 cuadros, 6 por dirección) pero con cuadros de w×h y el cuerpo de `body` px
- * de alto, pies en la última fila. Se generan con scripts/armar_skin.py.
+ * (2 filas: caminar / reposo; 4 direcciones × `frames` cuadros) pero con cuadros de w×h y el
+ * cuerpo de `body` px de alto. Se generan con scripts/armar_skin.py, que imprime esta línea.
  */
-export const CUSTOM_SPRITES: Record<string, {w: number; h: number; body: number}> = {
-  Nico: {w: 26, h: 44, body: 40}
+export interface SpriteFrame {
+  w: number
+  h: number
+  body: number
+  frames: number // cuadros por dirección
+}
+export const CUSTOM_SPRITES: Record<string, SpriteFrame> = {
+  Nico: {w: 33, h: 43, body: 40, frames: 4}
 }
 
-/** Tamaño de cuadro y de cuerpo de un personaje (LimeZu o propio). */
-export function frameOf(sprite: string): {w: number; h: number; body: number} {
-  return CUSTOM_SPRITES[sprite] ?? {w: FRAME.w, h: FRAME.h, body: BODY_H}
+/** Tamaño de cuadro, de cuerpo y cantidad de cuadros de un personaje (LimeZu o propio). */
+export function frameOf(sprite: string): SpriteFrame {
+  return CUSTOM_SPRITES[sprite] ?? {w: FRAME.w, h: FRAME.h, body: BODY_H, frames: FRAME.perDir}
 }
 export type Dir = 'right' | 'up' | 'left' | 'down'
 export const DIR_INDEX: Record<Dir, number> = {right: 0, up: 1, left: 2, down: 3}

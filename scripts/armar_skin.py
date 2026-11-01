@@ -1,73 +1,133 @@
 """
-Arma la hoja de sprites de un personaje propio a partir de una imagen con 4 vistas
-(2×2: frente | espalda / mira a la izquierda | mira a la derecha), fondo transparente.
+Arma la hoja de sprites de un personaje propio a partir de una imagen con su caminata.
+
+Formato de la imagen (fondo transparente): una FILA por dirección y en cada fila las poses
+de la caminata de izquierda a derecha (por ejemplo 4: pie adelante, piernas juntas, el otro
+pie adelante, piernas juntas). No hace falta que estén en una grilla pareja: cada figura se
+detecta por el espacio vacío que la rodea. Si falta un costado, se arma espejando el otro.
 
 Uso (necesita Pillow y numpy):
-    python3 scripts/armar_skin.py scripts/skins/Nico.png public/assets/personajes/Nico.png
+    python3 scripts/armar_skin.py scripts/skins/Nico.png public/assets/personajes/Nico.png \\
+        --filas abajo,arriba,izquierda
 
 Salida: misma grilla que los personajes de LimeZu (ver src/assets.ts): 2 filas
-(caminar / reposo) × 24 cuadros, 6 por dirección en orden derecha, arriba, izquierda,
-abajo; pero con cuadros de CUSTOM_FRAME (más grandes) y el cuerpo de BODY px de alto.
-Como la imagen trae una sola pose por dirección, al caminar el personaje rebota 1 px.
+(caminar / reposo) × 4 direcciones (derecha, arriba, izquierda, abajo) × N cuadros.
+Reposo = la segunda pose (piernas juntas). Al final imprime la línea para CUSTOM_SPRITES.
 """
-import sys
+import argparse
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 
-BODY = 40  # alto del cuerpo en la hoja (en src/assets.ts → CUSTOM_SPRITES[...].body)
-FW, FH = 26, 44  # tamaño de cada cuadro (en src/assets.ts → CUSTOM_SPRITES[...].w / .h)
+BODY = 40  # alto del cuerpo en la hoja, en la pose de reposo
 ORDER = ['right', 'up', 'left', 'down']
-QUAD = {'down': (0, 0), 'up': (0, 1), 'left': (1, 0), 'right': (1, 1)}
-WALK_BOB = [0, 1, 1, 0, 1, 1]  # px hacia arriba en cada cuadro de la caminata
+NAMES = {'abajo': 'down', 'arriba': 'up', 'izquierda': 'left', 'derecha': 'right'}
+ALPHA_MIN = 110  # por debajo, transparente (bordes nítidos, sin halo)
 
 
-def views(src):
-    h, w = src.height // 2, src.width // 2
-    out = {}
-    for d, (r, c) in QUAD.items():
-        q = src.crop((c * w, r * h, (c + 1) * w, (r + 1) * h))
-        ys, xs = np.where(np.array(q)[..., 3] > 128)
-        q = q.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
-        nw = max(1, round(q.width * BODY / q.height))
-        out[d] = q.convert('RGBa').resize((nw, BODY), Image.LANCZOS).convert('RGBA')
+def bands(v):
+    """Tramos consecutivos donde v es verdadero: [(inicio, fin), ...]."""
+    out, start = [], None
+    for i, x in enumerate(v):
+        if x and start is None:
+            start = i
+        elif not x and start is not None:
+            out.append((start, i))
+            start = None
+    if start is not None:
+        out.append((start, len(v)))
     return out
 
 
-def pixel_art(vs, colors=32):
-    """Paleta común para las 4 vistas y alfa binario (bordes nítidos)."""
-    strip = Image.new('RGBA', (sum(v.width for v in vs.values()), BODY))
+def figures(src):
+    """Recorta cada figura: lista de filas, cada una con sus poses (de izquierda a derecha)."""
+    a = np.array(src)
+    m = a[..., 3] > 128
+    rows = []
+    for y0, y1 in bands(m.any(axis=1)):
+        poses = []
+        for x0, x1 in bands(m[y0:y1].any(axis=0)):
+            sub = m[y0:y1, x0:x1]
+            ys, _ = np.where(sub)
+            top, bot = y0 + ys.min(), y0 + ys.max() + 1
+            head = m[top:top + (bot - top) * 35 // 100, x0:x1]
+            hx = x0 + np.where(head)[1].mean()  # centro de la cabeza: el ancla horizontal
+            poses.append({'img': src.crop((x0, top, x1, bot)), 'hx': hx - x0})
+        rows.append(poses)
+    return rows
+
+
+def scale_row(poses):
+    """Misma escala para toda la fila: la pose de reposo (la 2.ª) mide BODY de alto."""
+    k = BODY / poses[1]['img'].height
+    out = []
+    for p in poses:
+        im = p['img']
+        w, h = max(1, round(im.width * k)), max(1, round(im.height * k))
+        small = im.convert('RGBa').resize((w, h), Image.LANCZOS).convert('RGBA')
+        out.append({'img': small, 'hx': p['hx'] * k})
+    return out
+
+
+def common_palette(all_poses, colors=32):
+    """Una sola paleta para todas las poses (que los colores no titilen al animar)."""
+    strip = Image.new('RGBA', (sum(p['img'].width for p in all_poses), max(p['img'].height for p in all_poses)))
     x = 0
-    for v in vs.values():
-        strip.paste(v, (x, 0))
-        x += v.width
+    for p in all_poses:
+        strip.paste(p['img'], (x, 0))
+        x += p['img'].width
     pal = strip.convert('RGB').quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE)
-    out, x = {}, 0
-    for d, v in vs.items():
-        rgb = np.array(strip.convert('RGB').quantize(palette=pal, dither=Image.Dither.NONE).convert('RGB'))[:, x:x + v.width]
-        a = np.array(v)[..., 3]
-        px = np.zeros((BODY, v.width, 4), np.uint8)
+    for p in all_poses:
+        rgb = np.array(p['img'].convert('RGB').quantize(palette=pal, dither=Image.Dither.NONE).convert('RGB'))
+        alpha = np.array(p['img'])[..., 3]
+        px = np.zeros((*alpha.shape, 4), np.uint8)
         px[..., :3] = rgb
-        px[..., 3] = np.where(a >= 110, 255, 0)
-        out[d] = Image.fromarray(px)
-        x += v.width
-    return out
+        px[..., 3] = np.where(alpha >= ALPHA_MIN, 255, 0)
+        p['img'] = Image.fromarray(px)
 
 
-def main(src_path, out_path):
-    vs = pixel_art(views(Image.open(src_path).convert('RGBA')))
-    sheet = Image.new('RGBA', (FW * 24, FH * 2), (0, 0, 0, 0))
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument('src')
+    ap.add_argument('out')
+    ap.add_argument('--filas', default='abajo,arriba,izquierda', help='dirección de cada fila de la imagen')
+    args = ap.parse_args()
+
+    rows = figures(Image.open(args.src).convert('RGBA'))
+    dirs = [NAMES[n.strip()] for n in args.filas.split(',')]
+    assert len(dirs) == len(rows), f'la imagen tiene {len(rows)} filas y --filas nombra {len(dirs)}'
+    n = len(rows[0])
+    assert all(len(r) == n for r in rows), f'todas las filas tienen que tener las mismas poses: {[len(r) for r in rows]}'
+
+    by_dir = {d: scale_row(r) for d, r in zip(dirs, rows)}
+    common_palette([p for r in by_dir.values() for p in r])
+    for a, b in (('left', 'right'), ('right', 'left')):
+        if a in by_dir and b not in by_dir:
+            by_dir[b] = [{'img': ImageOps.mirror(p['img']), 'hx': p['img'].width - p['hx']} for p in by_dir[a]]
+    assert set(by_dir) == set(ORDER), f'faltan direcciones: {set(ORDER) - set(by_dir)}'
+
+    # Cuadro: entra la pose más ancha (centrada en la cabeza) y la más alta (pies abajo de todo)
+    poses = [p for r in by_dir.values() for p in r]
+    half = max(max(p['hx'], p['img'].width - p['hx']) for p in poses)
+    fw = int(np.ceil(half * 2)) + 2
+    fh = max(p['img'].height for p in poses) + 2
+
+    sheet = Image.new('RGBA', (fw * n * 4, fh * 2), (0, 0, 0, 0))
     for di, d in enumerate(ORDER):
-        v = vs[d]
-        assert v.width <= FW, f'la vista {d} mide {v.width} de ancho; agrandar FW'
-        for f in range(6):
-            for row, bob in ((0, WALK_BOB[f]), (1, 0)):
-                x = (di * 6 + f) * FW + (FW - v.width) // 2
-                y = row * FH + FH - BODY - bob  # pies en la última fila del cuadro
-                sheet.alpha_composite(v, (x, y))
-    sheet.save(out_path, optimize=True)
-    print(f'{out_path}: {sheet.width}×{sheet.height}, cuadros de {FW}×{FH}, cuerpo de {BODY} px')
+        row = by_dir[d]
+        tallest = max(p['img'].height for p in row)
+        for f in range(n):
+            for sheet_row, p in ((0, row[f]), (1, row[1])):  # fila 1 = reposo (2.ª pose)
+                x = (di * n + f) * fw + round(fw / 2 - p['hx'])
+                # la cabeza queda a la misma altura en todas las poses de la dirección (como en la
+                # imagen original); la pose más alta apoya los pies en la última fila del cuadro
+                y = sheet_row * fh + fh - tallest
+                sheet.alpha_composite(p['img'], (x, y))
+    sheet.save(args.out, optimize=True)
+    name = args.out.rsplit('/', 1)[-1].rsplit('.', 1)[0]
+    print(f'{args.out}: {sheet.width}×{sheet.height}, {n} cuadros por dirección de {fw}×{fh}')
+    print(f'CUSTOM_SPRITES en src/assets.ts →  {name}: {{w: {fw}, h: {fh}, body: {BODY}, frames: {n}}}')
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2])
+    main()

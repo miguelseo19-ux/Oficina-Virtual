@@ -74,21 +74,23 @@ el dibujo generado por código.
 
 ### Personajes propios (skins)
 
-Se arman a partir de una imagen con las 4 vistas en una grilla de 2×2 y fondo
-transparente: arriba **de frente | de espaldas**, abajo **mirando a la
-izquierda | mirando a la derecha** (ver `scripts/skins/Nico.png`).
+Se arman a partir de una imagen con fondo transparente y **una fila por
+dirección**: de frente, de espaldas y mirando a un costado (el otro costado se
+arma espejando). En cada fila van las poses de la caminata de izquierda a
+derecha, por ejemplo 4: pie adelante, piernas juntas, el otro pie adelante,
+piernas juntas (ver `scripts/skins/Nico.png`). La 2.ª pose se usa para estar
+quieto. Conviene que en todas las poses la cabeza quede a la misma altura y
+del mismo tamaño, y que solo cambien brazos y piernas.
 
 1. Guardar la imagen en `scripts/skins/<Nombre>.png`.
 2. Generar la hoja (necesita Python con Pillow y numpy):
-   `python3 scripts/armar_skin.py scripts/skins/<Nombre>.png public/assets/personajes/<Nombre>.png`
-3. Sumar `<Nombre>: {w: 26, h: 44, body: 40}` a `CUSTOM_SPRITES` en
-   `src/assets.ts` y poner `sprite: '<Nombre>'` en la persona (`src/config.ts`).
+   `python3 scripts/armar_skin.py scripts/skins/<Nombre>.png public/assets/personajes/<Nombre>.png --filas abajo,arriba,izquierda`
+3. El script imprime una línea como `<Nombre>: {w: 33, h: 43, body: 40, frames: 4}`:
+   sumarla a `CUSTOM_SPRITES` en `src/assets.ts` y poner `sprite: '<Nombre>'`
+   en la persona (`src/config.ts`).
 
-Se dibujan a la misma altura que los de LimeZu, con píxeles más finos. Como la
-imagen trae una sola pose por dirección, al caminar el personaje rebota en vez
-de mover las piernas.
-- Hojas de personaje: 2 filas (caminar / reposo) × 24 cuadros de 16×32,
-  6 por dirección (derecha, arriba, izquierda, abajo).
+Se dibujan a la misma altura que los de LimeZu, con píxeles más finos, y un
+paso completo dura lo mismo que el de los demás tenga las poses que tenga.
 
 **Para mayor fidelidad** se pueden reemplazar sprites uno por uno por PNG
 dibujados a mano (mismas medidas): escritorio con monitores (46×15), silla,

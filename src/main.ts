@@ -1315,9 +1315,10 @@ function start(me: Person, key: string) {
       ctx.restore()
     }
     const row = mov ? 0 : 1
-    const fps = mov ? 10 : 6
-    const frame = Math.floor(now / (1000 / fps)) % FRAME.perDir
-    const sx = (DIR_INDEX[dir] * FRAME.perDir + frame) * fr.w
+    // un paso completo dura 0,6 s tenga los cuadros que tenga (LimeZu: 6 cuadros → 10 por segundo)
+    const fps = mov ? fr.frames / 0.6 : 6
+    const frame = Math.floor(now / (1000 / fps)) % fr.frames
+    const sx = (DIR_INDEX[dir] * fr.frames + frame) * fr.w
     ctx.imageSmoothingEnabled = false
     ctx.drawImage(sheet, sx, row * fr.h, fr.w, fr.h, Math.round(x - w / 2), Math.round(feet - h), w, h)
     ctx.imageSmoothingEnabled = true
