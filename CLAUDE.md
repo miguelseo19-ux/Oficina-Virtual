@@ -1,0 +1,52 @@
+# Oficina virtual — contexto para Claude Code
+
+Oficina 2D estilo Gather para un equipo chico (5 personas hoy, 12 escritorios).
+Todo el texto de la app y los mensajes al usuario van **en español rioplatense**.
+
+## Cómo funciona
+- **Sin servidor propio.** Vite + TypeScript, se publica en GitHub Pages desde la
+  carpeta `docs/` (rama `main`, carpeta `/docs`).
+- **Tiempo real P2P** con `trystero` (señalización por relays Nostr públicos, lista
+  fija en `src/config.ts` → `RELAY_URLS`). Posiciones, chat, saludos y reacciones
+  viajan por data channels; el video por WebRTC directo.
+- **Clave de la oficina** = `password` de Trystero (no está en el código).
+- **Llamada por proximidad**: estar dentro de un cubículo (`DESKS[].zone`) o de una
+  sala (`ROOMS`) = estar en la videollamada de esa zona (`src/call.ts`).
+
+## Archivos clave
+| Archivo | Qué hace |
+|---|---|
+| `src/config.ts` | Personas (nombre, cargo, color, escritorio, `sprite`), relays, TURN |
+| `src/map.ts` | **Fuente de verdad** de la geometría en "píxeles de arte" (652×320, ×3 = mundo): cubículos, puertas, pasillo, ala derecha (sala de juntas con llamada + zona social decorativa), colisiones, `zoneAt`, `areaAt` |
+| `src/scene/*` | Escena pixel art generada por código (pixel.ts primitivas, sprites.ts, index.ts arma el lienzo estático) |
+| `src/assets.ts` | Carga sprites de LimeZu (`public/assets/limezu/`): personajes 16×32 animados y atlas de muebles |
+| `src/main.ts` | Login, bucle de juego, cámara/zoom, capa dinámica del mapa, avatares, paneles, comandos `/ir`, atajos |
+| `src/net.ts` | Capa Trystero (state, chat, wave, react) |
+| `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla |
+| `src/chat.ts` | Chat General / Cerca / privados (historial en localStorage) |
+| `src/icons.ts` | Íconos SVG de línea fina (no usar emojis como íconos) |
+| `src/style.css` | Marca *Private Session II*: negro `#020003`, bronce `#96582f`, naranja `#fa4616`, Space Grotesk + JetBrains Mono, títulos en MAYÚSCULAS |
+
+## Comandos
+- `npm install` — dependencias
+- `npm run dev` — servidor local (abrir la URL que muestra)
+- `npm run build` — typecheck + compila a `docs/` (hay que commitear `docs/` para publicar)
+- Después de `npm run build`, asegurarse de que exista `docs/.nojekyll`.
+
+## Pruebas y depuración
+- `?debug=1` en la URL: dibuja colisiones (rojo) y zonas (verde) y expone `window.__ov.pos`.
+- `?relay=ws://localhost:7777` usa un relay propio (útil si los públicos están bloqueados).
+- Para probar varias personas: abrir varias ventanas (o perfiles) con la misma clave y distinta persona.
+
+## Reglas del proyecto
+- Mantener la geometría en `map.ts` y que dibujo, colisiones y zonas salgan de ahí.
+- Verificar que los 12 escritorios y las salas sigan siendo alcanzables al mover muebles.
+- Assets de LimeZu: versión gratuita, **uso no comercial** (decisión del equipo). Crédito en Ajustes y en `public/assets/limezu/CREDITOS.txt`.
+- Commits en español, descriptivos. Publicar = `npm run build` + commit + push a `main`.
+
+## Pendientes conocidos
+- Personajes sentados al llegar a su escritorio (el pack trae animaciones `sit`).
+- Calendario (Google Calendar) — requiere crear un OAuth Client ID en Google Cloud.
+- Si alguna red bloquea P2P: agregar TURN en `TURN_SERVERS`.
+- Posible futuro: estilo 3D/isométrico con assets KayKit (ver conversación: empezar pre-renderizando a sprites 2D).
+- Los archivos `Modern_Interiors_Free_v2.2.zip` y `MetroCity 2.0.rar` en la raíz del repo: pendiente decidir si se eliminan.
