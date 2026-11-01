@@ -13,11 +13,11 @@ export interface Person {
 }
 
 export const PEOPLE: Person[] = [
-  {id: 'miguel', name: 'Miguel Marin', role: 'CEO', color: '#e4572e', desk: 1},
-  {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#2e86ab', desk: 2},
-  {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#3bb273', desk: 3},
-  {id: 'carina', name: 'Carina', role: 'Project Manager', color: '#9b5de5', desk: 4},
-  {id: 'agus', name: 'Agus', role: 'Editor', color: '#f2a541', desk: 5}
+  {id: 'miguel', name: 'Miguel Marin', role: 'CEO', color: '#b8693a', desk: 1},
+  {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#4f7ea6', desk: 2},
+  {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3},
+  {id: 'carina', name: 'Carina', role: 'Project Manager', color: '#8a6bb8', desk: 4},
+  {id: 'agus', name: 'Agus', role: 'Editor', color: '#c9a04f', desk: 5}
 ]
 
 export const DESK_COUNT = 12

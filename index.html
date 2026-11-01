@@ -4,13 +4,19 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Oficina virtual</title>
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>" />
+    <meta name="theme-color" content="#020003" />
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23020003'/><circle cx='16' cy='16' r='6' fill='%2396582f'/></svg>" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   </head>
   <body>
     <!-- Login -->
     <section id="login">
       <form id="login-form" class="card">
-        <h1>🏢 Oficina virtual</h1>
+        <div class="logo"><i class="logo-dot"></i>Oficina virtual</div>
+        <span class="eyebrow">Private Session II</span>
+        <h1>Bienvenido a la oficina</h1>
         <p class="muted">Movete por la oficina y acercate a un escritorio para hablar con esa persona.</p>
         <label>¿Quién sos?
           <select id="login-user" required></select>
@@ -28,21 +34,21 @@
     <main id="app" hidden>
       <!-- Barra de íconos (izquierda) -->
       <nav id="rail">
-        <button class="rail-btn active" data-view="office" title="Oficina (volver al mapa)">🗺️<span>Oficina</span></button>
-        <button class="rail-btn" data-view="chat" title="Chat (Enter)">💬<span>Chat</span><i id="chat-badge" class="badge" hidden></i></button>
-        <button class="rail-btn" data-view="team" title="Equipo (E)">👥<span>Equipo</span><i id="team-count" class="count"></i></button>
-        <button class="rail-btn" data-view="activity" title="Actividad">🔔<span>Actividad</span><i id="activity-badge" class="badge" hidden></i></button>
-        <button class="rail-btn" data-view="calendar" title="Calendario">📅<span>Calendario</span></button>
+        <button class="rail-btn active" data-view="office" title="Oficina (volver al mapa)"><i data-icon="office" data-size="22"></i><span>Oficina</span></button>
+        <button class="rail-btn" data-view="chat" title="Chat (Enter)"><i data-icon="chat" data-size="22"></i><span>Chat</span><i id="chat-badge" class="badge" hidden></i></button>
+        <button class="rail-btn" data-view="team" title="Equipo (E)"><i data-icon="team" data-size="22"></i><span>Equipo</span><i id="team-count" class="count"></i></button>
+        <button class="rail-btn" data-view="activity" title="Actividad"><i data-icon="bell" data-size="22"></i><span>Actividad</span><i id="activity-badge" class="badge" hidden></i></button>
+        <button class="rail-btn" data-view="calendar" title="Calendario"><i data-icon="calendar" data-size="22"></i><span>Calendario</span></button>
         <div class="rail-spacer"></div>
-        <button class="rail-btn" data-view="shortcuts" title="Atajos y comandos (?)">⌨️<span>Atajos</span></button>
-        <button class="rail-btn" data-view="settings" title="Ajustes">⚙️<span>Ajustes</span><i id="net-dot"></i></button>
+        <button class="rail-btn" data-view="shortcuts" title="Atajos y comandos (?)"><i data-icon="keyboard" data-size="22"></i><span>Atajos</span></button>
+        <button class="rail-btn" data-view="settings" title="Ajustes"><i data-icon="settings" data-size="22"></i><span>Ajustes</span><i id="net-dot"></i></button>
       </nav>
 
       <!-- Panel lateral plegable -->
       <aside id="side" hidden>
         <header>
           <strong id="side-title"></strong>
-          <button id="side-collapse" title="Encoger panel (Esc)">«</button>
+          <button id="side-collapse" title="Encoger panel (Esc)"><i data-icon="collapse" data-size="18"></i></button>
         </header>
 
         <section class="view" id="chat" hidden>
@@ -53,7 +59,7 @@
               <div id="chat-log"></div>
               <form id="chat-form">
                 <input id="chat-input" maxlength="1000" autocomplete="off" placeholder="Escribí un mensaje o /comando…" />
-                <button type="submit">Enviar</button>
+                <button type="submit" title="Enviar"><i data-icon="send" data-size="18"></i></button>
               </form>
             </div>
           </div>
@@ -69,7 +75,7 @@
 
         <section class="view pad" id="calendar" hidden>
           <div class="cal-empty">
-            <div class="big">📅</div>
+            <div class="big"><i data-icon="calendar" data-size="30"></i></div>
             <h3>Calendario</h3>
             <p class="muted">Acá vas a ver tus reuniones del día y tu estado va a cambiar solo a <b>Ocupado</b> cuando estés en una reunión.</p>
             <button id="btn-calendar" disabled>Conectar Google Calendar</button>
@@ -78,7 +84,7 @@
         </section>
 
         <section class="view pad" id="shortcuts" hidden>
-          <h3>Teclas</h3>
+          <span class="eyebrow">Teclas</span>
           <dl>
             <dt><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Moverte</dd>
             <dt><kbd>Enter</kbd></dt><dd>Abrir el chat</dd>
@@ -92,10 +98,10 @@
             <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles</dd>
           </dl>
           <p class="muted small">También <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> (micrófono) y <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (cámara), como en Gather.</p>
-          <h3>Comandos (en el chat)</h3>
+          <span class="eyebrow">Comandos en el chat</span>
           <dl>
             <dt><code>/ir nombre</code></dt><dd>Aparecer al lado de esa persona</dd>
-            <dt><code>/saludar nombre</code></dt><dd>Saludarla 👋</dd>
+            <dt><code>/saludar nombre</code></dt><dd>Saludarla (le suena un aviso)</dd>
             <dt><code>/msj nombre texto</code></dt><dd>Mensaje privado</dd>
             <dt><code>/escritorio</code></dt><dd>Volver a tu escritorio</dd>
             <dt><code>/ocupado</code> <code>/disponible</code> <code>/ausente</code></dt><dd>Tu estado</dd>
@@ -111,10 +117,10 @@
             <span id="me-avatar-lg" class="avatar lg"></span>
             <div><strong id="me-name"></strong><div class="muted small" id="me-role"></div></div>
           </div>
-          <button id="btn-open-devices">🎙️ Elegir cámara, micrófono y parlante</button>
-          <h3>Conexión</h3>
+          <button id="btn-open-devices" class="ghost"><i data-icon="settings" data-size="18"></i> Cámara, micrófono y parlante</button>
+          <span class="eyebrow">Conexión</span>
           <p id="net-status" class="small"></p>
-          <button id="btn-logout" class="link">Cerrar sesión</button>
+          <button id="btn-logout" class="ghost"><i data-icon="logout" data-size="18"></i> Cerrar sesión</button>
         </section>
       </aside>
 
@@ -126,32 +132,33 @@
         <div id="pill-wrap">
           <div id="status-menu" class="menu" hidden>
             <button data-status="available"><i class="sdot" style="background:#3bb273"></i>Disponible</button>
-            <button data-status="busy"><i class="sdot" style="background:#e5484d"></i>Ocupado (no molestar)</button>
+            <button data-status="busy"><i class="sdot" style="background:#fa4616"></i>Ocupado (no molestar)</button>
             <button data-status="away"><i class="sdot" style="background:#f2c94c"></i>Ausente</button>
           </div>
           <div id="react-menu" class="menu row" hidden></div>
           <div id="devices" class="menu" hidden>
-            <label>📷 Cámara <select id="sel-cam"></select></label>
-            <label>🎙️ Micrófono <select id="sel-mic"></select></label>
-            <label id="spk-row">🔊 Parlante / auriculares <select id="sel-spk"></select></label>
+            <span class="eyebrow">Dispositivos</span>
+            <label>Cámara <select id="sel-cam"></select></label>
+            <label>Micrófono <select id="sel-mic"></select></label>
+            <label id="spk-row">Parlante / auriculares <select id="sel-spk"></select></label>
           </div>
           <div id="pill">
             <button id="pill-me" title="Tu estado (B)"><span id="me-avatar" class="avatar"></span><i id="me-dot" class="sdot"></i></button>
             <span class="sep"></span>
-            <span class="split"><button id="btn-mic" title="Micrófono (M)">🎙️</button><button class="caret" data-open-devices title="Elegir micrófono">▴</button></span>
-            <span class="split"><button id="btn-cam" title="Cámara (V)">📷</button><button class="caret" data-open-devices title="Elegir cámara">▴</button></span>
-            <button id="btn-react" title="Reacciones (1-6)">😊</button>
-            <button id="btn-screen" title="Compartir pantalla">🖥️</button>
-            <button id="btn-nearby" title="Chat cercano">🗨️</button>
+            <span class="split"><button id="btn-mic" title="Micrófono (M)"><i data-icon="mic" class="i-on"></i><i data-icon="mic-off" class="i-off"></i></button><button class="caret" data-open-devices title="Elegir micrófono"><i data-icon="chevron-up" data-size="14"></i></button></span>
+            <span class="split"><button id="btn-cam" title="Cámara (V)"><i data-icon="video" class="i-on"></i><i data-icon="video-off" class="i-off"></i></button><button class="caret" data-open-devices title="Elegir cámara"><i data-icon="chevron-up" data-size="14"></i></button></span>
+            <button id="btn-react" title="Reacciones (1-6)"><i data-icon="smile"></i></button>
+            <button id="btn-screen" title="Compartir pantalla"><i data-icon="screen"></i></button>
+            <button id="btn-nearby" title="Chat cercano"><i data-icon="nearby"></i></button>
             <span class="sep"></span>
-            <button id="btn-home" title="Volver a mi escritorio (H)">🪑</button>
+            <button id="btn-home" title="Volver a mi escritorio (H)"><i data-icon="home"></i></button>
           </div>
         </div>
       </div>
 
       <section id="call" hidden>
         <header>
-          <span class="live">● En llamada</span>
+          <span class="live"><i class="pulse"></i>En llamada</span>
           <strong id="call-title"></strong>
         </header>
         <div id="tiles"></div>

@@ -175,16 +175,16 @@ export class Chat {
   // ── UI ─────────────────────────────────────────────────────
 
   private channelName(ch: Channel) {
-    if (ch === 'general') return '# General'
-    if (ch === 'nearby') return '📍 Cerca'
+    if (ch === 'general') return 'General'
+    if (ch === 'nearby') return 'Cerca'
     return personById(ch.slice(3))?.name ?? 'Privado'
   }
 
   private renderChannels() {
     const online = new Set([...this.net.players.values()].map(p => p.person))
     const items: {ch: Channel; label: string; color?: string; online?: boolean}[] = [
-      {ch: 'general', label: '# General'},
-      {ch: 'nearby', label: '📍 Cerca'},
+      {ch: 'general', label: 'General'},
+      {ch: 'nearby', label: 'Cerca'},
       ...PEOPLE.filter(p => p.id !== this.me.id).map(p => ({
         ch: `dm:${p.id}`,
         label: p.name,
@@ -223,9 +223,9 @@ export class Chat {
     const ch = this.active
     this.title.textContent =
       ch === 'nearby'
-        ? '📍 Cerca — lo leen solo quienes están cerca tuyo en el mapa'
+        ? 'Cerca · lo leen solo quienes están al lado tuyo en el mapa'
         : ch === 'general'
-          ? '# General — todo el equipo conectado'
+          ? 'General · todo el equipo conectado'
           : `Privado con ${this.channelName(ch)}`
     const list = this.history[ch] ?? []
     if (!list.length) {

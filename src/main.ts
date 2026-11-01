@@ -12,6 +12,7 @@ import {
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
 import {Chat} from './chat'
+import {hydrateIcons, icon} from './icons'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
 const LS_USER = 'ov.user'
@@ -24,7 +25,7 @@ const STATUS_LABEL: Record<Status, string> = {
   busy: 'ocupado (no molestar)',
   away: 'ausente'
 }
-const STATUS_COLOR: Record<Status, string> = {available: '#3bb273', busy: '#e5484d', away: '#f2c94c'}
+const STATUS_COLOR: Record<Status, string> = {available: '#3bb273', busy: '#fa4616', away: '#f2c94c'}
 
 function lsGet(k: string) {
   try {
@@ -85,6 +86,7 @@ function setupLogin() {
 function start(me: Person, key: string) {
   $('login').hidden = true
   $('app').hidden = false
+  hydrateIcons()
 
   const canvas = $<HTMLCanvasElement>('world')
   const ctx = canvas.getContext('2d')!
@@ -172,9 +174,9 @@ function start(me: Person, key: string) {
     onDirectMessage: (from, text, open) => {
       if (status !== 'busy') beep(660)
       const short = text.length > 80 ? text.slice(0, 80) + '…' : text
-      toast(`💬 ${from.name}: ${short}`, [{label: 'Responder', fn: open}])
-      notify(`💬 ${from.name}`, text, open)
-      addActivity('💬', `${from.name}: ${short}`, open, true)
+      toast(`${from.name}: ${short}`, [{label: 'Responder', fn: open}], 'message')
+      notify(`Mensaje de ${from.name}`, text, open)
+      addActivity('message', `${from.name}: ${short}`, open, true)
     },
     onCommand: text => runCommand(text),
     onOpen: () => setView('chat'),
@@ -184,12 +186,12 @@ function start(me: Person, key: string) {
   // ── panel lateral (pestañas de la barra de íconos) ──
   type View = 'chat' | 'team' | 'activity' | 'calendar' | 'shortcuts' | 'settings'
   const VIEW_TITLE: Record<View, string> = {
-    chat: '💬 Chat',
-    team: '👥 Equipo',
-    activity: '🔔 Actividad',
-    calendar: '📅 Calendario',
-    shortcuts: '⌨️ Atajos y comandos',
-    settings: '⚙️ Ajustes'
+    chat: 'Chat',
+    team: 'Equipo',
+    activity: 'Actividad',
+    calendar: 'Calendario',
+    shortcuts: 'Atajos y comandos',
+    settings: 'Ajustes'
   }
   let view: View | null = null
   /** null = Oficina (panel encogido, solo el mapa). */
@@ -287,7 +289,7 @@ function start(me: Person, key: string) {
         const li = document.createElement('li')
         if (a.unread) li.classList.add('unread')
         li.innerHTML = '<span class="ic"></span><div><div class="t"></div><div class="w"></div></div>'
-        li.querySelector('.ic')!.textContent = a.icon
+        li.querySelector('.ic')!.innerHTML = icon(a.icon, 18)
         li.querySelector('.t')!.textContent = a.text
         const d = new Date(a.ts)
         li.querySelector('.w')!.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
@@ -306,13 +308,13 @@ function start(me: Person, key: string) {
       for (const id of now) {
         if (!knownOnline.has(id)) {
           const p = personById(id)
-          if (p) addActivity('🟢', `${p.name} se conectó`, () => goTo(id))
+          if (p) addActivity('user-plus', `${p.name} se conectó`, () => goTo(id))
         }
       }
       for (const id of knownOnline) {
         if (!now.has(id)) {
           const p = personById(id)
-          if (p) addActivity('⚪', `${p.name} se desconectó`)
+          if (p) addActivity('user-minus', `${p.name} se desconectó`)
         }
       }
     }
@@ -353,7 +355,7 @@ function start(me: Person, key: string) {
         return needPerson(p => {
           goTo(p.id)
           chat.close()
-          toast(`📍 Fuiste hasta ${p.name}`)
+          toast(`Fuiste hasta ${p.name}`, [], 'pin')
         })
       case 'saludar':
       case 'hola':
@@ -366,7 +368,7 @@ function start(me: Person, key: string) {
         if (!p || !text) return toast('Uso: /msj nombre texto')
         chat.sendTo(`dm:${p.id}`, text)
         if (!net.peersOf(p.id).length) toast(`${p.name} no está conectado: no le va a llegar`)
-        else toast(`💬 Enviado a ${p.name}`)
+        else toast(`Enviado a ${p.name}`, [], 'send')
         return
       }
       case 'escritorio':
@@ -378,20 +380,20 @@ function start(me: Person, key: string) {
       case 'ocupado':
       case 'busy':
         setManualStatus('busy')
-        return toast('🔴 Estás ocupado (no molestar)')
+        return toast('Estás ocupado (no molestar)', [], 'moon')
       case 'disponible':
         setManualStatus('available')
-        return toast('🟢 Estás disponible')
+        return toast('Estás disponible', [], 'check')
       case 'ausente':
         setManualStatus('away')
-        return toast('🟡 Estás ausente')
+        return toast('Estás ausente', [], 'minus')
       case 'mic':
         call.toggleMic()
-        return toast(call.micOn ? '🎙️ Micrófono activado' : '🔇 Micrófono silenciado')
+        return toast(call.micOn ? 'Micrófono activado' : 'Micrófono silenciado', [], call.micOn ? 'mic' : 'mic-off')
       case 'cam':
       case 'camara':
         call.toggleCam()
-        return toast(call.camOn ? '📷 Cámara encendida' : '📷 Cámara apagada')
+        return toast(call.camOn ? 'Cámara encendida' : 'Cámara apagada', [], call.camOn ? 'video' : 'video-off')
       case 'quien':
       case 'quienes':
       case 'equipo': {
@@ -525,19 +527,19 @@ function start(me: Person, key: string) {
   function wave(personId: string) {
     const name = personById(personId)?.name ?? ''
     net.sendWave(me.id, net.peersOf(personId))
-    toast(`👋 Saludaste a ${name}`)
+    toast(`Saludaste a ${name}`, [], 'wave')
   }
 
   function receiveWave(fromId: string) {
     const from = personById(fromId)
     if (!from) return
     if (status !== 'busy') beep(990)
-    addActivity('👋', `${from.name} te saludó`, () => goTo(from.id), true)
-    toast(`👋 ${from.name} te saluda`, [
+    addActivity('wave', `${from.name} te saludó`, () => goTo(from.id), true)
+    toast(`${from.name} te saluda`, [
       {label: 'Ir', fn: () => goTo(from.id)},
       {label: 'Responder', fn: () => chat.openDM(from.id)}
-    ])
-    notify('👋 Te saludan', `${from.name} te saluda`, () => goTo(from.id))
+    ], 'wave')
+    notify('Te saludan', `${from.name} te saluda`, () => goTo(from.id))
   }
 
   // ── cámara / viewport ──
@@ -613,7 +615,7 @@ function start(me: Person, key: string) {
       call.setZone(z)
       if (z !== null) {
         const busy = [...net.players.values()].filter(p => p.zone === z && p.status === 'busy')
-        for (const b of busy) toast(`🔴 ${personById(b.person)?.name ?? 'Alguien'} está ocupado (no molestar)`)
+        for (const b of busy) toast(`${personById(b.person)?.name ?? 'Alguien'} está ocupado (no molestar)`, [], 'moon')
       }
       document.title = z ? '● En llamada — Oficina virtual' : 'Oficina virtual'
       renderRoster()
@@ -667,7 +669,7 @@ function start(me: Person, key: string) {
   // ── dibujo ──
   function draw(now: number) {
     ctx.save()
-    ctx.fillStyle = '#2b2f3a'
+    ctx.fillStyle = '#020003'
     ctx.fillRect(0, 0, vw, vh)
     ctx.scale(zoom, zoom)
     ctx.translate(-camX, -camY)
@@ -718,8 +720,8 @@ function start(me: Person, key: string) {
     }
 
     if (target) {
-      ctx.strokeStyle = 'rgba(255,255,255,.6)'
-      ctx.lineWidth = 2
+      ctx.strokeStyle = 'rgba(150,88,47,0.9)'
+      ctx.lineWidth = 1.5
       ctx.beginPath()
       ctx.arc(target.x, target.y, 8, 0, Math.PI * 2)
       ctx.stroke()
@@ -727,112 +729,158 @@ function start(me: Person, key: string) {
     ctx.restore()
   }
 
+  // Paleta del mapa (marca: negro violáceo, líneas finas, acento bronce)
+  const C = {
+    void: '#020003',
+    floor: '#0f0c13',
+    dot: 'rgba(255,255,255,0.09)',
+    wall: '#1b1720',
+    hair: 'rgba(255,255,255,0.08)',
+    bronze: '#96582f',
+    warm: '#fa4616',
+    table: '#1e1a23',
+    chair: '#2c2732',
+    text: '#ffffff',
+    muted: 'rgba(255,255,255,0.55)',
+    subtle: 'rgba(255,255,255,0.38)'
+  }
+  const SANS = '"Space Grotesk", system-ui, sans-serif'
+  const MONO = '"JetBrains Mono", ui-monospace, monospace'
+  function spaced(px: number) {
+    // letterSpacing existe en Chrome/Edge/Firefox recientes; en otros se ignora
+    ;(ctx as CanvasRenderingContext2D & {letterSpacing?: string}).letterSpacing = `${px}px`
+  }
+
   function drawFloor() {
-    ctx.fillStyle = '#e9dcc6'
+    ctx.fillStyle = C.floor
     ctx.fillRect(0, 0, WORLD.w, WORLD.h)
-    ctx.strokeStyle = 'rgba(120,90,50,.08)'
-    ctx.lineWidth = 1
-    for (let y = 0; y < WORLD.h; y += 32) {
-      ctx.beginPath()
-      ctx.moveTo(0, y)
-      ctx.lineTo(WORLD.w, y)
-      ctx.stroke()
+    // grilla de puntos
+    ctx.fillStyle = C.dot
+    for (let y = 36; y < WORLD.h; y += 32) {
+      for (let x = 36; x < WORLD.w; x += 32) ctx.fillRect(x, y, 1.5, 1.5)
     }
     // paredes
-    ctx.fillStyle = '#4a4e5a'
+    ctx.fillStyle = C.wall
     ctx.fillRect(0, 0, WORLD.w, 20)
     ctx.fillRect(0, WORLD.h - 20, WORLD.w, 20)
     ctx.fillRect(0, 0, 20, WORLD.h)
     ctx.fillRect(WORLD.w - 20, 0, 20, WORLD.h)
+    ctx.strokeStyle = C.hair
+    ctx.lineWidth = 1
+    ctx.strokeRect(20.5, 20.5, WORLD.w - 41, WORLD.h - 41)
   }
 
   function drawDesk(n: number, people: number, now: number) {
     const d = deskByNum(n)
     const owner = deskOwner(n)
-    const color = owner?.color ?? '#9aa0a6'
+    const color = owner?.color ?? '#7a7480'
     const z = d.zone
-    // alfombra
-    roundRect(z.x, z.y, z.w, z.h, 18)
-    ctx.fillStyle = hexA(color, owner ? 0.16 : 0.1)
-    ctx.fill()
     const talking = people >= 2
-    ctx.lineWidth = talking ? 3 + Math.sin(now / 250) * 1 : people > 0 ? 2.5 : 2
-    ctx.setLineDash(people > 0 ? [] : [8, 6])
-    ctx.strokeStyle = hexA(color, talking ? 0.95 : people > 0 ? 0.7 : 0.45)
+    // alfombra
+    roundRect(z.x, z.y, z.w, z.h, 16)
+    ctx.fillStyle = talking ? 'rgba(250,70,22,0.07)' : people > 0 ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.03)'
+    ctx.fill()
+    ctx.save()
+    if (talking) {
+      ctx.shadowColor = 'rgba(150,88,47,0.8)'
+      ctx.shadowBlur = 18 + Math.sin(now / 300) * 6
+    }
+    ctx.lineWidth = 1
+    ctx.setLineDash(people > 0 ? [] : [4, 6])
+    ctx.strokeStyle = talking ? 'rgba(150,88,47,0.9)' : people > 0 ? hexA(color, 0.6) : owner ? hexA(color, 0.28) : 'rgba(255,255,255,0.14)'
     ctx.stroke()
+    ctx.restore()
     ctx.setLineDash([])
 
     // mesa
     const t = d.table
-    ctx.fillStyle = 'rgba(0,0,0,.12)'
-    roundRect(t.x + 3, t.y + 5, t.w, t.h, 8)
+    roundRect(t.x, t.y, t.w, t.h, 10)
+    ctx.fillStyle = C.table
     ctx.fill()
-    ctx.fillStyle = '#a47148'
-    roundRect(t.x, t.y, t.w, t.h, 8)
-    ctx.fill()
-    // monitor
+    ctx.strokeStyle = C.hair
+    ctx.stroke()
+    // monitor con brillo del color de la persona
     const mx = t.x + t.w / 2
-    const my = d.top ? t.y + 16 : t.y + t.h - 16
-    ctx.fillStyle = '#23262e'
-    roundRect(mx - 26, my - 9, 52, 18, 3)
+    const my = d.top ? t.y + 17 : t.y + t.h - 17
+    roundRect(mx - 25, my - 8, 50, 16, 4)
+    ctx.fillStyle = '#060408'
     ctx.fill()
-    ctx.fillStyle = hexA(color, 0.85)
-    ctx.fillRect(mx - 22, my - 6, 44, 12)
+    ctx.save()
+    ctx.shadowColor = hexA(color, owner ? 0.8 : 0.2)
+    ctx.shadowBlur = 12
+    ctx.fillStyle = hexA(color, owner ? 0.85 : 0.25)
+    roundRect(mx - 21, my - 5, 42, 10, 2)
+    ctx.fill()
+    ctx.restore()
     // silla
-    ctx.fillStyle = '#3d4250'
+    ctx.fillStyle = C.chair
     ctx.beginPath()
-    ctx.arc(d.chair.x, d.chair.y, 14, 0, Math.PI * 2)
+    ctx.arc(d.chair.x, d.chair.y, 13, 0, Math.PI * 2)
     ctx.fill()
+    ctx.strokeStyle = C.hair
+    ctx.stroke()
 
-    // cartel
-    const label = owner ? owner.name : `Libre · ${n}`
-    const sub = owner ? owner.role : ''
-    const ly = d.top ? z.y + z.h - 30 : z.y + 24
+    // cartel: NOMBRE en mayúsculas + cargo en mono
+    const cx = z.x + z.w / 2
+    const ly = d.top ? z.y + z.h - 34 : z.y + 30
     ctx.textAlign = 'center'
-    ctx.font = '600 15px system-ui, sans-serif'
-    ctx.fillStyle = owner ? '#2b2f3a' : '#7a7f88'
-    ctx.fillText(label, z.x + z.w / 2, ly)
-    if (sub) {
-      ctx.font = '12px system-ui, sans-serif'
-      ctx.fillStyle = '#5f6470'
-      ctx.fillText(sub, z.x + z.w / 2, ly + 16)
+    ctx.font = `700 14px ${SANS}`
+    spaced(-0.2)
+    ctx.fillStyle = owner ? C.text : C.subtle
+    ctx.fillText(owner ? owner.name.toUpperCase() : 'LIBRE', cx, ly)
+    ctx.font = `500 9px ${MONO}`
+    spaced(1.6)
+    ctx.fillStyle = owner ? C.muted : C.subtle
+    ctx.fillText(owner ? owner.role.toUpperCase() : `ESCRITORIO ${String(n).padStart(2, '0')}`, cx, ly + 16)
+    if (talking) {
+      ctx.font = `600 9px ${MONO}`
+      spaced(1.8)
+      ctx.fillStyle = C.warm
+      ctx.fillText(`● ${people} EN LLAMADA`, cx, d.top ? z.y + 22 : z.y + z.h - 12)
     }
-    if (people >= 2) {
-      ctx.font = '600 11px system-ui, sans-serif'
-      ctx.fillStyle = hexA(color, 1)
-      ctx.fillText(`● ${people} en llamada`, z.x + z.w / 2, d.top ? z.y + 22 : z.y + z.h - 12)
-    }
+    spaced(0)
   }
 
   function drawLounge() {
     const l = LOUNGE
-    roundRect(l.x, l.y, l.w, l.h, 40)
-    ctx.fillStyle = '#c9b79c'
+    roundRect(l.x, l.y, l.w, l.h, 50)
+    ctx.fillStyle = 'rgba(150,88,47,0.07)'
     ctx.fill()
-    ctx.fillStyle = '#6c8ead'
-    roundRect(l.x + 20, l.y + 10, l.w - 40, 22, 10)
+    ctx.strokeStyle = 'rgba(150,88,47,0.35)'
+    ctx.lineWidth = 1
+    ctx.stroke()
+    roundRect(l.x + 24, l.y + 12, l.w - 48, 20, 10)
+    ctx.fillStyle = C.chair
     ctx.fill()
-    ctx.fillStyle = '#8a6a4a'
-    roundRect(l.x + l.w / 2 - 40, l.y + 48, 80, 34, 8)
+    roundRect(l.x + l.w / 2 - 38, l.y + 50, 76, 30, 8)
+    ctx.fillStyle = C.table
     ctx.fill()
+    ctx.strokeStyle = C.hair
+    ctx.stroke()
     ctx.textAlign = 'center'
-    ctx.font = '12px system-ui, sans-serif'
-    ctx.fillStyle = '#5f6470'
-    ctx.fillText('Pasillo', l.x + l.w / 2, l.y + l.h + 18)
+    ctx.font = `500 9px ${MONO}`
+    spaced(2)
+    ctx.fillStyle = 'rgba(150,88,47,0.9)'
+    ctx.fillText('PASILLO', l.x + l.w / 2, l.y + l.h + 20)
+    spaced(0)
   }
 
   function drawPlant(x: number, y: number) {
-    ctx.fillStyle = '#7b5e3b'
+    ctx.fillStyle = C.chair
     ctx.beginPath()
-    ctx.arc(x, y, 16, 0, Math.PI * 2)
+    ctx.arc(x, y, 15, 0, Math.PI * 2)
     ctx.fill()
-    ctx.fillStyle = '#4f8a4b'
+    ctx.fillStyle = '#25382c'
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2
       ctx.beginPath()
-      ctx.arc(x + Math.cos(a) * 11, y + Math.sin(a) * 11, 11, 0, Math.PI * 2)
+      ctx.arc(x + Math.cos(a) * 10, y + Math.sin(a) * 10, 10, 0, Math.PI * 2)
       ctx.fill()
     }
+    ctx.fillStyle = '#2f4a37'
+    ctx.beginPath()
+    ctx.arc(x, y, 8, 0, Math.PI * 2)
+    ctx.fill()
   }
 
   function drawAvatar(
@@ -847,73 +895,82 @@ function start(me: Person, key: string) {
     const color = p?.color ?? '#888'
     const bob = mov ? Math.abs(Math.sin(self ? walkPhase : now / 80)) * 3 : 0
     ctx.save()
-    if (st === 'away') ctx.globalAlpha = 0.5
-    ctx.fillStyle = 'rgba(0,0,0,.2)'
+    if (st === 'away') ctx.globalAlpha = 0.45
+    // sombra difusa del color de acento
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'
     ctx.beginPath()
-    ctx.ellipse(x, y + 14, 14, 5, 0, 0, Math.PI * 2)
+    ctx.ellipse(x, y + 15, 13, 4, 0, 0, Math.PI * 2)
     ctx.fill()
+    if (self) {
+      ctx.save()
+      ctx.shadowColor = 'rgba(150,88,47,0.9)'
+      ctx.shadowBlur = 16
+      ctx.strokeStyle = 'rgba(150,88,47,0.9)'
+      ctx.lineWidth = 1.5
+      ctx.beginPath()
+      ctx.arc(x, y - bob, 21, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.restore()
+    }
     ctx.fillStyle = color
     ctx.beginPath()
     ctx.arc(x, y - bob, 16, 0, Math.PI * 2)
     ctx.fill()
-    ctx.lineWidth = self ? 3 : 2
-    ctx.strokeStyle = self ? '#fff' : 'rgba(255,255,255,.7)'
+    ctx.lineWidth = 2
+    ctx.strokeStyle = C.void
     ctx.stroke()
     ctx.fillStyle = '#fff'
     ctx.textAlign = 'center'
-    ctx.font = '700 12px system-ui, sans-serif'
+    ctx.font = `700 12px ${SANS}`
     ctx.fillText(initials(p?.name ?? '?'), x, y - bob + 4)
-    // nombre
-    const name = self ? `${p?.name ?? ''} (vos)` : (p?.name ?? 'Invitado')
-    ctx.font = '600 12px system-ui, sans-serif'
-    const w = ctx.measureText(name).width + 12
-    ctx.fillStyle = 'rgba(30,32,40,.78)'
-    roundRect(x - w / 2, y - bob - 42, w, 18, 9)
+    // etiqueta con el nombre (vidrio oscuro)
+    const name = (self ? 'Vos' : (p?.name.split(' ')[0] ?? 'Invitado')).toUpperCase()
+    ctx.font = `500 9px ${MONO}`
+    spaced(1.4)
+    const w = ctx.measureText(name).width + 16
+    roundRect(x - w / 2, y - bob - 44, w, 18, 9)
+    ctx.fillStyle = 'rgba(10,8,12,0.82)'
     ctx.fill()
+    ctx.strokeStyle = self ? 'rgba(150,88,47,0.7)' : C.hair
+    ctx.lineWidth = 1
+    ctx.stroke()
     ctx.fillStyle = '#fff'
-    ctx.fillText(name, x, y - bob - 29)
+    ctx.fillText(name, x + 0.7, y - bob - 31.5)
+    spaced(0)
     // indicador de estado
     ctx.globalAlpha = 1
     ctx.fillStyle = STATUS_COLOR[st]
     ctx.beginPath()
-    ctx.arc(x + 12, y - bob + 11, 6, 0, Math.PI * 2)
+    ctx.arc(x + 12, y - bob + 11, 5, 0, Math.PI * 2)
     ctx.fill()
     ctx.lineWidth = 2
-    ctx.strokeStyle = '#fff'
+    ctx.strokeStyle = C.void
     ctx.stroke()
-    if (st === 'away') {
-      ctx.fillStyle = '#2b2f3a'
-      ctx.font = '700 11px system-ui, sans-serif'
-      ctx.fillText('z', x + 22, y - bob - 6)
-    }
     ctx.restore()
   }
 
   function drawBubble(x: number, y: number, text: string) {
     const t = text.length > 60 ? text.slice(0, 60) + '…' : text
-    ctx.font = '13px system-ui, sans-serif'
-    const w = Math.min(260, ctx.measureText(t).width + 18)
-    const h = 26
+    ctx.font = `500 13px ${SANS}`
+    const w = Math.min(260, ctx.measureText(t).width + 22)
+    const h = 28
     const bx = x - w / 2
-    const by = y - 80
-    ctx.fillStyle = '#fff'
-    ctx.strokeStyle = 'rgba(0,0,0,.15)'
-    ctx.lineWidth = 1
-    roundRect(bx, by, w, h, 12)
+    const by = y - 86
+    ctx.fillStyle = '#ffffff'
+    roundRect(bx, by, w, h, 10)
     ctx.fill()
-    ctx.stroke()
     ctx.beginPath()
     ctx.moveTo(x - 6, by + h)
     ctx.lineTo(x, by + h + 7)
     ctx.lineTo(x + 6, by + h)
     ctx.fill()
-    ctx.fillStyle = '#1f222b'
+    ctx.fillStyle = C.void
     ctx.textAlign = 'center'
     ctx.save()
     ctx.beginPath()
-    ctx.rect(bx + 6, by, w - 12, h)
+    ctx.rect(bx + 8, by, w - 16, h)
     ctx.clip()
-    ctx.fillText(t, x, by + 17)
+    ctx.fillText(t, x, by + 18.5)
     ctx.restore()
   }
 
@@ -928,8 +985,9 @@ function start(me: Person, key: string) {
     $('net-dot').style.background = open === 0 ? 'var(--danger)' : 'var(--ok)'
     $('net-status').textContent =
       open === 0
-        ? `🔴 Sin conexión a la red (0/${total}). Revisá internet o desactivá bloqueadores de anuncios.`
-        : `🟢 Conectado a ${open} de ${total} servidores · ves a ${peers} ${peers === 1 ? 'persona' : 'personas'}.`
+        ? `Sin conexión a la red (0/${total}). Revisá internet o desactivá bloqueadores de anuncios.`
+        : `Conectado a ${open} de ${total} servidores · ves a ${peers} ${peers === 1 ? 'persona' : 'personas'}.`
+    $('net-status').dataset.ok = open === 0 ? '0' : '1'
     const online = new Set([...net.players.values()].map(p => p.person))
     $('team-count').textContent = String(online.size + 1)
   }
@@ -961,10 +1019,10 @@ function start(me: Person, key: string) {
         li.querySelector('.s')!.textContent = text
         if (!isMe && rp) {
           const acts = li.querySelector('.acts')!
-          const mk = (icon: string, title: string, fn: () => void) => {
+          const mk = (ic: string, title: string, fn: () => void) => {
             const b = document.createElement('button')
             b.className = 'act'
-            b.textContent = icon
+            b.innerHTML = icon(ic, 16)
             b.title = title
             b.onclick = e => {
               e.stopPropagation()
@@ -972,9 +1030,9 @@ function start(me: Person, key: string) {
             }
             acts.appendChild(b)
           }
-          mk('👋', `Saludar a ${p.name}`, () => wave(p.id))
-          mk('💬', `Mensaje a ${p.name}`, () => chat.openDM(p.id))
-          mk('📍', `Ir hasta ${p.name}`, () => goTo(p.id))
+          mk('wave', `Saludar a ${p.name}`, () => wave(p.id))
+          mk('message', `Mensaje a ${p.name}`, () => chat.openDM(p.id))
+          mk('pin', `Ir hasta ${p.name}`, () => goTo(p.id))
         }
         return li
       })
@@ -985,13 +1043,13 @@ function start(me: Person, key: string) {
   // ── avisos ──
   function knock(p: RemotePlayer) {
     const who = personById(p.person)?.name ?? 'Alguien'
-    addActivity('🚪', `${who} pasó por tu escritorio`, goHome, true)
+    addActivity('door', `${who} pasó por tu escritorio`, goHome, true)
     if (status === 'busy') {
-      toast(`${who} pasó por tu escritorio (estás en no molestar)`, [{label: 'Ir a mi escritorio', fn: goHome}])
+      toast(`${who} pasó por tu escritorio (estás en no molestar)`, [{label: 'Ir a mi escritorio', fn: goHome}], 'door')
       return
     }
     beep()
-    toast(`${who} está en tu escritorio`, [{label: 'Ir a mi escritorio', fn: goHome}])
+    toast(`${who} está en tu escritorio`, [{label: 'Ir a mi escritorio', fn: goHome}], 'door')
     notify('Oficina virtual', `${who} está en tu escritorio`, goHome)
   }
 
@@ -1014,10 +1072,14 @@ function start(me: Person, key: string) {
   requestAnimationFrame(step)
 }
 
-function toast(msg: string, actions: {label: string; fn: () => void}[] = []) {
+function toast(msg: string, actions: {label: string; fn: () => void}[] = [], ic = 'info') {
   const box = $('toasts')
   const el = document.createElement('div')
   el.className = 'toast'
+  const i = document.createElement('i')
+  i.className = 'toast-ic'
+  i.innerHTML = icon(ic, 18)
+  el.appendChild(i)
   const span = document.createElement('span')
   span.textContent = msg
   el.appendChild(span)

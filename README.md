@@ -31,15 +31,23 @@ entre los navegadores** (WebRTC, cifrado de punta a punta). Para encontrarse,
 los navegadores usan relays públicos de la red Nostr, y ese intercambio va
 cifrado con la **clave de la oficina**.
 
+## Marca
+
+Sigue el branding de *Private Session II*: fondo negro `#020003`, acento
+bronce `#96582f`, naranja `#fa4616` para alertas, tipografías **Space Grotesk**
+(textos) y **JetBrains Mono** (etiquetas y datos), títulos en mayúsculas,
+bordes de 1px casi invisibles y vidrio esmerilado en lo flotante. Los íconos
+son SVG de línea fina (estilo SF Regular) en `src/icons.ts`.
+
 ## Pantalla
 
-- **Barra de íconos a la izquierda**: 🗺️ Oficina (solo el mapa), 💬 Chat,
-  👥 Equipo, 🔔 Actividad (saludos, mensajes, quién pasó por tu escritorio,
-  quién se conectó), 📅 Calendario, ⌨️ Atajos y ⚙️ Ajustes. Cada una abre un
+- **Barra de íconos a la izquierda**: Oficina (solo el mapa), Chat,
+  Equipo, Actividad (saludos, mensajes, quién pasó por tu escritorio,
+  quién se conectó), Calendario, Atajos y Ajustes. Cada una abre un
   panel lateral que se encoge con « o Esc.
 - **Burbuja flotante abajo**: tu avatar (tocalo para cambiar el estado),
-  micrófono ▴, cámara ▴ (la flechita elige el dispositivo), 😊 reacciones,
-  🖥️ compartir pantalla, 🗨️ chat cercano y 🪑 volver a tu escritorio.
+  micrófono ^, cámara ^ (la flechita elige el dispositivo), reacciones,
+  compartir pantalla, chat cercano y volver a tu escritorio.
 
 ## Atajos y comandos
 
