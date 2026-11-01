@@ -1,6 +1,6 @@
 import './style.css'
 import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
-import {AREAS, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
+import {AREAS, ART, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
 import {buildScene} from './scene'
 import {DIR_INDEX, FRAME, loadAssets, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
@@ -14,6 +14,9 @@ const LS_KEY = 'ov.key'
 const AWAY_AFTER_MS = 10 * 60 * 1000 // 10 minutos sin actividad → ausente
 const NEAR_RADIUS = 200
 const DEBUG = new URLSearchParams(location.search).has('debug') // ?debug=1 muestra colisiones y zonas
+// Cuánto de la oficina se ve como máximo, en píxeles de arte (el mapa mide 652×320; un cubículo
+// mide ~78 de ancho y cada fila ~106 de alto). Más chico = cámara más cerca.
+const VIEW_ART = {w: 170, h: 220}
 
 const STATUS_LABEL: Record<Status, string> = {
   available: 'disponible',
@@ -561,11 +564,13 @@ function start(me: Person, key: string) {
     canvas.width = Math.round(vw * dpr)
     canvas.height = Math.round(vh * dpr)
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-    // La oficina llena todo el lienzo, sin franjas negras: se escala hasta cubrir el alto y el
-    // ancho, y lo que no entra se recorre con la cámara, que sigue al avatar.
-    // El tamaño de cada píxel de arte se redondea HACIA ARRIBA a cuartos de píxel: nítido y sin huecos.
-    const cover = Math.max(vw / WORLD.w, vh / WORLD.h)
-    const artPx = Math.max(1.5, Math.ceil(cover * PX * 4) / 4)
+    // Vista de cerca, estilo Gather: se ve una parte de la oficina (unos VIEW_ART píxeles de arte)
+    // y la cámara sigue al avatar. Nunca menos que lo necesario para cubrir todo el lienzo (sin
+    // franjas negras). El tamaño de cada píxel de arte se redondea HACIA ARRIBA a cuartos de
+    // píxel: nítido y sin huecos.
+    const close = Math.min(vw / VIEW_ART.w, vh / VIEW_ART.h)
+    const cover = Math.max(vw / ART.w, vh / ART.h)
+    const artPx = Math.max(1.5, Math.ceil(Math.max(close, cover) * 4) / 4)
     zoom = artPx / PX
   }
   new ResizeObserver(resize).observe(canvas)
