@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Oficina virtual</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🏢</text></svg>" />
-    <script type="module" crossorigin src="./assets/index-B1B_Tfp7.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-dWYQyq6C.css">
+    <script type="module" crossorigin src="./assets/index-DrX4yJCz.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-yMOuowg5.css">
   </head>
   <body>
     <!-- Login -->
@@ -28,86 +28,128 @@
 
     <!-- App -->
     <main id="app" hidden>
-      <div id="stage">
-        <canvas id="world"></canvas>
-        <div id="toasts"></div>
+      <!-- Barra de íconos (izquierda) -->
+      <nav id="rail">
+        <button class="rail-btn active" data-view="office" title="Oficina (volver al mapa)">🗺️<span>Oficina</span></button>
+        <button class="rail-btn" data-view="chat" title="Chat (Enter)">💬<span>Chat</span><i id="chat-badge" class="badge" hidden></i></button>
+        <button class="rail-btn" data-view="team" title="Equipo (E)">👥<span>Equipo</span><i id="team-count" class="count"></i></button>
+        <button class="rail-btn" data-view="activity" title="Actividad">🔔<span>Actividad</span><i id="activity-badge" class="badge" hidden></i></button>
+        <button class="rail-btn" data-view="calendar" title="Calendario">📅<span>Calendario</span></button>
+        <div class="rail-spacer"></div>
+        <button class="rail-btn" data-view="shortcuts" title="Atajos y comandos (?)">⌨️<span>Atajos</span></button>
+        <button class="rail-btn" data-view="settings" title="Ajustes">⚙️<span>Ajustes</span><i id="net-dot"></i></button>
+      </nav>
 
-        <section id="team" class="popover" hidden>
-          <header><strong>👥 Equipo</strong><button class="close" data-close="team" title="Cerrar (Esc)">✕</button></header>
-          <ul id="roster"></ul>
-        </section>
+      <!-- Panel lateral plegable -->
+      <aside id="side" hidden>
+        <header>
+          <strong id="side-title"></strong>
+          <button id="side-collapse" title="Encoger panel (Esc)">«</button>
+        </header>
 
-        <section id="shortcuts" class="popover wide" hidden>
-          <header><strong>⌨️ Atajos y comandos</strong><button class="close" data-close="shortcuts" title="Cerrar (Esc)">✕</button></header>
-          <div class="sc-body">
-            <h3>Teclas</h3>
-            <dl>
-              <dt><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Moverte</dd>
-              <dt><kbd>Enter</kbd></dt><dd>Abrir el chat</dd>
-              <dt><kbd>H</kbd></dt><dd>Ir a mi escritorio</dd>
-              <dt><kbd>M</kbd></dt><dd>Silenciar / activar micrófono</dd>
-              <dt><kbd>V</kbd></dt><dd>Apagar / encender cámara</dd>
-              <dt><kbd>B</kbd></dt><dd>Ocupado (no molestar) ↔ Disponible</dd>
-              <dt><kbd>E</kbd></dt><dd>Ver el equipo</dd>
-              <dt><kbd>?</kbd></dt><dd>Ver esta ayuda</dd>
-              <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles</dd>
-            </dl>
-            <p class="muted small">También funcionan <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> (micrófono) y <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (cámara), como en Gather.</p>
-            <h3>Comandos (escribilos en el chat)</h3>
-            <dl>
-              <dt><code>/ir nombre</code></dt><dd>Aparecer al lado de esa persona</dd>
-              <dt><code>/saludar nombre</code></dt><dd>Saludarla 👋 (le suena un aviso)</dd>
-              <dt><code>/msj nombre texto</code></dt><dd>Mensaje privado</dd>
-              <dt><code>/escritorio</code></dt><dd>Ir a tu escritorio</dd>
-              <dt><code>/ocupado</code> · <code>/disponible</code> · <code>/ausente</code></dt><dd>Cambiar tu estado</dd>
-              <dt><code>/mic</code> · <code>/cam</code></dt><dd>Micrófono / cámara</dd>
-              <dt><code>/quien</code></dt><dd>Quién está conectado y dónde</dd>
-              <dt><code>/ayuda</code></dt><dd>Ver esta ayuda</dd>
-            </dl>
-            <p class="muted small">El nombre puede ser solo el primero: <code>/ir migue</code>, <code>/saludar cari</code>, <code>/msj fran hola</code>.</p>
-          </div>
-        </section>
-
-        <section id="chat" hidden>
-          <header>
-            <strong>💬 Chat</strong>
-            <button id="chat-close" title="Cerrar (Esc)">✕</button>
-          </header>
+        <section class="view" id="chat" hidden>
           <div class="chat-body">
             <nav id="chat-channels"></nav>
             <div class="chat-main">
               <div id="chat-title"></div>
               <div id="chat-log"></div>
               <form id="chat-form">
-                <input id="chat-input" maxlength="1000" autocomplete="off" placeholder="Escribí un mensaje y Enter…" />
+                <input id="chat-input" maxlength="1000" autocomplete="off" placeholder="Escribí un mensaje o /comando…" />
                 <button type="submit">Enviar</button>
               </form>
             </div>
           </div>
         </section>
-      </div>
 
-      <nav id="bar">
-        <div id="me">
-          <span id="me-avatar" class="avatar"></span>
-          <span id="me-name"></span>
-          <select id="status-select" title="Tu estado (tecla B)">
-            <option value="available">🟢 Disponible</option>
-            <option value="busy">🔴 Ocupado</option>
-            <option value="away">🟡 Ausente</option>
-          </select>
+        <section class="view" id="team" hidden>
+          <ul id="roster"></ul>
+        </section>
+
+        <section class="view" id="activity" hidden>
+          <ul id="activity-list"></ul>
+        </section>
+
+        <section class="view pad" id="calendar" hidden>
+          <div class="cal-empty">
+            <div class="big">📅</div>
+            <h3>Calendario</h3>
+            <p class="muted">Acá vas a ver tus reuniones del día y tu estado va a cambiar solo a <b>Ocupado</b> cuando estés en una reunión.</p>
+            <button id="btn-calendar" disabled>Conectar Google Calendar</button>
+            <p class="muted small">Todavía no está activado: necesita un permiso de Google que se configura una sola vez.</p>
+          </div>
+        </section>
+
+        <section class="view pad" id="shortcuts" hidden>
+          <h3>Teclas</h3>
+          <dl>
+            <dt><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> / <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Moverte</dd>
+            <dt><kbd>Enter</kbd></dt><dd>Abrir el chat</dd>
+            <dt><kbd>H</kbd></dt><dd>Volver a mi escritorio</dd>
+            <dt><kbd>M</kbd></dt><dd>Micrófono</dd>
+            <dt><kbd>V</kbd></dt><dd>Cámara</dd>
+            <dt><kbd>B</kbd></dt><dd>Ocupado ↔ Disponible</dd>
+            <dt><kbd>E</kbd></dt><dd>Equipo</dd>
+            <dt><kbd>1</kbd>…<kbd>6</kbd></dt><dd>Reacciones 👋 👍 ❤️ 😂 🎉 ✋</dd>
+            <dt><kbd>?</kbd></dt><dd>Esta ayuda</dd>
+            <dt><kbd>Esc</kbd></dt><dd>Cerrar paneles</dd>
+          </dl>
+          <p class="muted small">También <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>A</kbd> (micrófono) y <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>V</kbd> (cámara), como en Gather.</p>
+          <h3>Comandos (en el chat)</h3>
+          <dl>
+            <dt><code>/ir nombre</code></dt><dd>Aparecer al lado de esa persona</dd>
+            <dt><code>/saludar nombre</code></dt><dd>Saludarla 👋</dd>
+            <dt><code>/msj nombre texto</code></dt><dd>Mensaje privado</dd>
+            <dt><code>/escritorio</code></dt><dd>Volver a tu escritorio</dd>
+            <dt><code>/ocupado</code> <code>/disponible</code> <code>/ausente</code></dt><dd>Tu estado</dd>
+            <dt><code>/mic</code> <code>/cam</code></dt><dd>Micrófono / cámara</dd>
+            <dt><code>/quien</code></dt><dd>Quién está conectado</dd>
+            <dt><code>/ayuda</code></dt><dd>Esta ayuda</dd>
+          </dl>
+          <p class="muted small">Alcanza con el comienzo del nombre: <code>/ir migue</code>, <code>/saludar cari</code>.</p>
+        </section>
+
+        <section class="view pad" id="settings" hidden>
+          <div id="me">
+            <span id="me-avatar-lg" class="avatar lg"></span>
+            <div><strong id="me-name"></strong><div class="muted small" id="me-role"></div></div>
+          </div>
+          <button id="btn-open-devices">🎙️ Elegir cámara, micrófono y parlante</button>
+          <h3>Conexión</h3>
+          <p id="net-status" class="small"></p>
+          <button id="btn-logout" class="link">Cerrar sesión</button>
+        </section>
+      </aside>
+
+      <div id="stage">
+        <canvas id="world"></canvas>
+        <div id="toasts"></div>
+
+        <!-- Burbuja flotante (abajo al centro) -->
+        <div id="pill-wrap">
+          <div id="status-menu" class="menu" hidden>
+            <button data-status="available"><i class="sdot" style="background:#3bb273"></i>Disponible</button>
+            <button data-status="busy"><i class="sdot" style="background:#e5484d"></i>Ocupado (no molestar)</button>
+            <button data-status="away"><i class="sdot" style="background:#f2c94c"></i>Ausente</button>
+          </div>
+          <div id="react-menu" class="menu row" hidden></div>
+          <div id="devices" class="menu" hidden>
+            <label>📷 Cámara <select id="sel-cam"></select></label>
+            <label>🎙️ Micrófono <select id="sel-mic"></select></label>
+            <label id="spk-row">🔊 Parlante / auriculares <select id="sel-spk"></select></label>
+          </div>
+          <div id="pill">
+            <button id="pill-me" title="Tu estado (B)"><span id="me-avatar" class="avatar"></span><i id="me-dot" class="sdot"></i></button>
+            <span class="sep"></span>
+            <span class="split"><button id="btn-mic" title="Micrófono (M)">🎙️</button><button class="caret" data-open-devices title="Elegir micrófono">▴</button></span>
+            <span class="split"><button id="btn-cam" title="Cámara (V)">📷</button><button class="caret" data-open-devices title="Elegir cámara">▴</button></span>
+            <button id="btn-react" title="Reacciones (1-6)">😊</button>
+            <button id="btn-screen" title="Compartir pantalla">🖥️</button>
+            <button id="btn-nearby" title="Chat cercano">🗨️</button>
+            <span class="sep"></span>
+            <button id="btn-home" title="Volver a mi escritorio (H)">🪑</button>
+          </div>
         </div>
-        <div class="bar-center">
-          <button id="btn-home" title="Ir a mi escritorio (H)">🪑<span class="lbl"> Mi escritorio</span></button>
-          <button id="btn-team" title="Equipo (E)">👥<span class="lbl"> Equipo</span> <span id="team-count" class="count"></span></button>
-          <button id="btn-chat" title="Chat (Enter)">💬<span class="lbl"> Chat</span> <span id="chat-badge" class="badge" hidden></span></button>
-          <button id="btn-shortcuts" title="Atajos y comandos (?)">⌨️<span class="lbl"> Atajos</span></button>
-        </div>
-        <div class="bar-right">
-          <span id="net-status" class="small muted"></span>
-          <button id="btn-logout" class="link">Salir</button>
-        </div>
-      </nav>
+      </div>
 
       <section id="call" hidden>
         <header>
@@ -115,19 +157,8 @@
           <strong id="call-title"></strong>
         </header>
         <div id="tiles"></div>
-        <div id="devices" hidden>
-          <label>📷 Cámara <select id="sel-cam"></select></label>
-          <label>🎙️ Micrófono <select id="sel-mic"></select></label>
-          <label id="spk-row">🔊 Parlante / auriculares <select id="sel-spk"></select></label>
-        </div>
         <p id="call-notice"></p>
-        <footer>
-          <button id="btn-mic" title="Silenciar micrófono">🎙️</button>
-          <button id="btn-cam" title="Apagar cámara">📷</button>
-          <button id="btn-screen" title="Compartir pantalla">🖥️</button>
-          <button id="btn-devices" title="Elegir cámara, micrófono y parlante">⚙️</button>
-          <span class="muted small">Alejate de la alfombra para cortar</span>
-        </footer>
+        <p class="muted small">Alejate de la alfombra para cortar.</p>
       </section>
     </main>
   </body>

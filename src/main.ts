@@ -101,14 +101,18 @@ function start(me: Person, key: string) {
   if (!(manualStatus in STATUS_LABEL)) manualStatus = 'available'
   let lastActivity = Date.now()
   let status: Status = manualStatus
-  const statusSel = $<HTMLSelectElement>('status-select')
-  statusSel.value = manualStatus
-  statusSel.onchange = () => {
-    manualStatus = statusSel.value as Status
-    lsSet(LS_STATUS, manualStatus)
-    lastActivity = Date.now()
-    refreshStatus()
-    statusSel.blur()
+  function renderStatusUI() {
+    $('me-dot').style.background = STATUS_COLOR[status]
+    $('pill-me').title = `Tu estado: ${STATUS_LABEL[status]} (B)`
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#status-menu [data-status]')) {
+      b.classList.toggle('sel', b.dataset.status === manualStatus)
+    }
+  }
+  for (const b of document.querySelectorAll<HTMLButtonElement>('#status-menu [data-status]')) {
+    b.onclick = () => {
+      setManualStatus(b.dataset.status as Status)
+      openMenu(null)
+    }
   }
   const markActive = () => {
     lastActivity = Date.now()
@@ -129,8 +133,7 @@ function start(me: Person, key: string) {
     const next = computeStatus()
     if (next === status) return
     status = next
-    statusSel.value = status
-    statusSel.dataset.status = status
+    renderStatusUI()
     call.reconcile()
     renderRoster()
   }
@@ -138,23 +141,25 @@ function start(me: Person, key: string) {
   const net = new Net(key, {
     onPlayer: (p, prevZone) => {
       if (p.zone === me.desk && prevZone !== me.desk && currentZone !== me.desk) knock(p)
+      trackPresence()
       call.reconcile()
       renderRoster()
       chat.refresh()
     },
     onLeave: id => {
       call.onPeerGone(id)
+      trackPresence()
       renderRoster()
       chat.refresh()
     },
     onStream: (stream, id) => call.onRemoteStream(stream, id),
     onError: msg => toast(msg),
     onChat: m => chat.receive(m),
-    onWave: from => receiveWave(from)
+    onWave: from => receiveWave(from),
+    onReact: (from, emoji) => reactions.set(from, {emoji, start: performance.now()})
   })
   let currentZone: number | null = null
   const call = new Call(net, me.id, zoneLabel, () => status)
-  statusSel.dataset.status = status
 
   // burbujas de chat "cerca" sobre los personajes
   const bubbles = new Map<string, {text: string; until: number}>()
@@ -166,38 +171,156 @@ function start(me: Person, key: string) {
     onNearbyMessage: (from, text) => bubbles.set(from, {text, until: performance.now() + 6000}),
     onDirectMessage: (from, text, open) => {
       if (status !== 'busy') beep(660)
-      toast(`💬 ${from.name}: ${text.length > 80 ? text.slice(0, 80) + '…' : text}`, [{label: 'Responder', fn: open}])
+      const short = text.length > 80 ? text.slice(0, 80) + '…' : text
+      toast(`💬 ${from.name}: ${short}`, [{label: 'Responder', fn: open}])
       notify(`💬 ${from.name}`, text, open)
+      addActivity('💬', `${from.name}: ${short}`, open, true)
     },
-    onCommand: text => runCommand(text)
+    onCommand: text => runCommand(text),
+    onOpen: () => setView('chat'),
+    onClose: () => view === 'chat' && setView(null)
   })
 
-  // ── paneles (equipo / atajos) ──
-  const popovers = ['team', 'shortcuts'] as const
-  function togglePanel(id: (typeof popovers)[number], force?: boolean) {
-    const el = $(id)
-    const show = force ?? el.hidden
-    for (const other of popovers) $(other).hidden = true
-    el.hidden = !show
-    $('btn-team').classList.toggle('on', !$('team').hidden)
-    $('btn-shortcuts').classList.toggle('on', !$('shortcuts').hidden)
-    if (show) chat.close()
+  // ── panel lateral (pestañas de la barra de íconos) ──
+  type View = 'chat' | 'team' | 'activity' | 'calendar' | 'shortcuts' | 'settings'
+  const VIEW_TITLE: Record<View, string> = {
+    chat: '💬 Chat',
+    team: '👥 Equipo',
+    activity: '🔔 Actividad',
+    calendar: '📅 Calendario',
+    shortcuts: '⌨️ Atajos y comandos',
+    settings: '⚙️ Ajustes'
   }
-  function closePanels() {
-    for (const id of popovers) $(id).hidden = true
-    $('btn-team').classList.remove('on')
-    $('btn-shortcuts').classList.remove('on')
+  let view: View | null = null
+  /** null = Oficina (panel encogido, solo el mapa). */
+  function setView(v: View | null) {
+    view = v
+    $('side').hidden = v === null
+    for (const id of Object.keys(VIEW_TITLE) as View[]) {
+      if (id === 'chat') {
+        if (v !== 'chat') chat.hide()
+      } else $(id).hidden = id !== v
+    }
+    if (v) $('side-title').textContent = VIEW_TITLE[v]
+    for (const b of document.querySelectorAll<HTMLButtonElement>('.rail-btn')) {
+      b.classList.toggle('active', (b.dataset.view === 'office' && v === null) || b.dataset.view === v)
+    }
+    if (v === 'activity') markActivityRead()
+    if (v === 'team') renderRoster()
   }
-  $('btn-team').onclick = () => togglePanel('team')
-  $('btn-shortcuts').onclick = () => togglePanel('shortcuts')
-  for (const b of document.querySelectorAll<HTMLButtonElement>('[data-close]')) {
-    b.onclick = () => closePanels()
+  function toggleView(v: View) {
+    if (view === v) return setView(null)
+    if (v === 'chat') chat.open()
+    else setView(v)
   }
-  $('btn-chat').addEventListener('click', () => closePanels())
+  for (const b of document.querySelectorAll<HTMLButtonElement>('.rail-btn')) {
+    b.onclick = () => (b.dataset.view === 'office' ? setView(null) : toggleView(b.dataset.view as View))
+  }
+  $('side-collapse').onclick = () => setView(null)
+
+  // ── menús de la burbuja (estado / reacciones / dispositivos) ──
+  const MENUS = ['status-menu', 'react-menu', 'devices']
+  function openMenu(id: string | null) {
+    for (const m of MENUS) $(m).hidden = m !== id
+    $('btn-react').classList.toggle('on', id === 'react-menu')
+  }
+  const toggleMenu = (id: string) => openMenu($(id).hidden ? id : null)
+  document.addEventListener('ov:menu', e => openMenu((e as CustomEvent<string | null>).detail))
+  document.addEventListener('pointerdown', e => {
+    if (!(e.target as HTMLElement).closest('#pill-wrap')) openMenu(null)
+  })
+  $('pill-me').onclick = () => toggleMenu('status-menu')
+  $('btn-react').onclick = () => toggleMenu('react-menu')
+  $('btn-nearby').onclick = () => chat.open('nearby')
+  $('btn-screen').onclick = () => {
+    if ($('call').hidden) toast('Para compartir pantalla, entrá a una llamada (alfombra de un escritorio).')
+    else void call.toggleScreen()
+  }
+  $('btn-open-devices').onclick = () => call.openDevices(true)
+
+  // ── reacciones ──
+  const REACTIONS = ['👋', '👍', '❤️', '😂', '🎉', '✋']
+  const reactions = new Map<string, {emoji: string; start: number}>()
+  function react(emoji: string) {
+    reactions.set(me.id, {emoji, start: performance.now()})
+    net.sendReact(me.id, emoji)
+  }
+  $('react-menu').replaceChildren(
+    ...REACTIONS.map((r, i) => {
+      const b = document.createElement('button')
+      b.textContent = r
+      b.title = `Tecla ${i + 1}`
+      b.onclick = () => {
+        react(r)
+        openMenu(null)
+      }
+      return b
+    })
+  )
+
+  // ── actividad ──
+  type Act = {icon: string; text: string; ts: number; action?: () => void; unread: boolean}
+  const activity: Act[] = []
+  let knownOnline = new Set<string>()
+  let presenceReady = false
+  setTimeout(() => (presenceReady = true), 4000) // no anunciar a los que ya estaban al entrar
+  function addActivity(icon: string, text: string, action?: () => void, important = false) {
+    activity.unshift({icon, text, ts: Date.now(), action, unread: important && view !== 'activity'})
+    if (activity.length > 60) activity.length = 60
+    renderActivity()
+  }
+  function markActivityRead() {
+    for (const a of activity) a.unread = false
+    renderActivity()
+  }
+  function renderActivity() {
+    const n = activity.filter(a => a.unread).length
+    $('activity-badge').hidden = n === 0
+    $('activity-badge').textContent = String(n)
+    const list = $('activity-list')
+    if (!activity.length) {
+      list.innerHTML = '<li class="empty" style="display:block">Acá vas a ver saludos, mensajes y quién pasó por tu escritorio.</li>'
+      return
+    }
+    list.replaceChildren(
+      ...activity.map(a => {
+        const li = document.createElement('li')
+        if (a.unread) li.classList.add('unread')
+        li.innerHTML = '<span class="ic"></span><div><div class="t"></div><div class="w"></div></div>'
+        li.querySelector('.ic')!.textContent = a.icon
+        li.querySelector('.t')!.textContent = a.text
+        const d = new Date(a.ts)
+        li.querySelector('.w')!.textContent = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+        if (a.action) {
+          li.classList.add('click')
+          li.onclick = a.action
+        }
+        return li
+      })
+    )
+  }
+  renderActivity()
+  function trackPresence() {
+    const now = new Set([...net.players.values()].map(p => p.person))
+    if (presenceReady) {
+      for (const id of now) {
+        if (!knownOnline.has(id)) {
+          const p = personById(id)
+          if (p) addActivity('🟢', `${p.name} se conectó`, () => goTo(id))
+        }
+      }
+      for (const id of knownOnline) {
+        if (!now.has(id)) {
+          const p = personById(id)
+          if (p) addActivity('⚪', `${p.name} se desconectó`)
+        }
+      }
+    }
+    knownOnline = now
+  }
 
   function setManualStatus(st: Status) {
     manualStatus = st
-    statusSel.value = st
     lsSet(LS_STATUS, st)
     lastActivity = Date.now()
     refreshStatus()
@@ -282,8 +405,7 @@ function start(me: Person, key: string) {
       case 'ayuda':
       case 'help':
       case 'comandos':
-        chat.close()
-        return togglePanel('shortcuts', true)
+        return setView('shortcuts')
       default:
         toast(`Comando desconocido: /${cmdRaw}. Escribí /ayuda`)
     }
@@ -319,14 +441,13 @@ function start(me: Person, key: string) {
       }
     }
     if (e.key === 'Escape') {
-      closePanels()
-      chat.close()
+      if (MENUS.some(m => !$(m).hidden)) openMenu(null)
+      else setView(null)
       return
     }
     if ((e.target as HTMLElement).closest('input,select,textarea')) return
     if (e.ctrlKey || e.metaKey || e.altKey) return
     if (e.key === 'Enter') {
-      closePanels()
       chat.open()
       e.preventDefault()
       return
@@ -337,9 +458,10 @@ function start(me: Person, key: string) {
       m: () => call.toggleMic(),
       v: () => call.toggleCam(),
       b: () => setManualStatus(manualStatus === 'busy' ? 'available' : 'busy'),
-      e: () => togglePanel('team'),
-      '?': () => togglePanel('shortcuts')
+      e: () => toggleView('team'),
+      '?': () => toggleView('shortcuts')
     }
+    REACTIONS.forEach((r, i) => (shortcuts[String(i + 1)] = () => react(r)))
     if (shortcuts[single] && !e.repeat) {
       shortcuts[single]()
       e.preventDefault()
@@ -367,8 +489,12 @@ function start(me: Person, key: string) {
     location.reload()
   }
   $('me-name').textContent = me.name
-  $('me-avatar').textContent = initials(me.name)
-  $('me-avatar').style.background = me.color
+  $('me-role').textContent = me.role
+  for (const id of ['me-avatar', 'me-avatar-lg']) {
+    $(id).textContent = initials(me.name)
+    $(id).style.background = me.color
+  }
+  renderStatusUI()
 
   function goHome() {
     pos.x = myDesk.seat.x
@@ -406,6 +532,7 @@ function start(me: Person, key: string) {
     const from = personById(fromId)
     if (!from) return
     if (status !== 'busy') beep(990)
+    addActivity('👋', `${from.name} te saludó`, () => goTo(from.id), true)
     toast(`👋 ${from.name} te saluda`, [
       {label: 'Ir', fn: () => goTo(from.id)},
       {label: 'Responder', fn: () => chat.openDM(from.id)}
@@ -575,6 +702,19 @@ function start(me: Person, key: string) {
       const b = a.person && bubbles.get(a.person.id)
       if (b && b.until > now) drawBubble(a.x, a.y, b.text)
       else if (b && a.person) bubbles.delete(a.person.id)
+      const r = a.person && reactions.get(a.person.id)
+      if (r) {
+        const age = now - r.start
+        if (age > 2600) reactions.delete(a.person!.id)
+        else {
+          ctx.save()
+          ctx.globalAlpha = age < 2000 ? 1 : 1 - (age - 2000) / 600
+          ctx.font = '30px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
+          ctx.textAlign = 'center'
+          ctx.fillText(r.emoji, a.x, a.y - 58 - age / 45)
+          ctx.restore()
+        }
+      }
     }
 
     if (target) {
@@ -785,14 +925,13 @@ function start(me: Person, key: string) {
   function renderNetStatus() {
     const {open, total} = net.relayStatus()
     const peers = net.players.size
-    const el = $('net-status')
-    el.textContent = open === 0 ? `🔴 Sin red (0/${total})` : `🟢 Red ${open}/${total} · ${peers} ${peers === 1 ? 'conectado' : 'conectados'}`
-    el.title =
+    $('net-dot').style.background = open === 0 ? 'var(--danger)' : 'var(--ok)'
+    $('net-status').textContent =
       open === 0
-        ? 'Sin conexión a la red. Revisá internet o desactivá bloqueadores de anuncios.'
-        : `Conectado a ${open} de ${total} servidores. Ves a ${peers} ${peers === 1 ? 'persona' : 'personas'}.`
+        ? `🔴 Sin conexión a la red (0/${total}). Revisá internet o desactivá bloqueadores de anuncios.`
+        : `🟢 Conectado a ${open} de ${total} servidores · ves a ${peers} ${peers === 1 ? 'persona' : 'personas'}.`
     const online = new Set([...net.players.values()].map(p => p.person))
-    $('team-count').textContent = `${online.size + 1}/${PEOPLE.length}`
+    $('team-count').textContent = String(online.size + 1)
   }
 
   // ── lista de presentes ──
@@ -846,6 +985,7 @@ function start(me: Person, key: string) {
   // ── avisos ──
   function knock(p: RemotePlayer) {
     const who = personById(p.person)?.name ?? 'Alguien'
+    addActivity('🚪', `${who} pasó por tu escritorio`, goHome, true)
     if (status === 'busy') {
       toast(`${who} pasó por tu escritorio (estás en no molestar)`, [{label: 'Ir a mi escritorio', fn: goHome}])
       return

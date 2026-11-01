@@ -69,9 +69,11 @@ export class Call {
     this.btnMic.onclick = () => this.toggleMic()
     this.btnCam.onclick = () => this.toggleCam()
     this.btnScreen.onclick = () => void this.toggleScreen()
-    ;(document.getElementById('btn-devices') as HTMLButtonElement).onclick = () => {
-      this.devPanel.hidden = !this.devPanel.hidden
-      if (!this.devPanel.hidden) void this.fillDevices()
+    for (const b of document.querySelectorAll<HTMLElement>('[data-open-devices]')) {
+      b.addEventListener('click', e => {
+        e.stopPropagation()
+        this.openDevices(this.devPanel.hidden)
+      })
     }
     this.selCam.onchange = () => void this.switchCam(this.selCam.value)
     this.selMic.onchange = () => void this.switchMic(this.selMic.value)
@@ -83,6 +85,12 @@ export class Call {
   }
 
   // ── elegir cámara / micrófono / parlante ───────────────────
+
+  /** Muestra u oculta el menú para elegir cámara / micrófono / parlante. */
+  openDevices(show = true) {
+    document.dispatchEvent(new CustomEvent('ov:menu', {detail: show ? 'devices' : null}))
+    if (show) void this.fillDevices()
+  }
 
   private async fillDevices() {
     let devices: MediaDeviceInfo[] = []
@@ -362,7 +370,6 @@ export class Call {
     }
     this.releaseMedia()
     this.panel.hidden = true
-    this.devPanel.hidden = true
     this.tiles.replaceChildren()
     for (const k of [...this.analysers.keys()]) this.dropAnalyser(k)
   }
@@ -436,7 +443,7 @@ export class Call {
     this.btnCam.title = this.camOn ? 'Apagar cámara' : 'Encender cámara'
   }
 
-  private async toggleScreen() {
+  async toggleScreen() {
     if (this.screenTrack) return this.stopScreen(true)
     if (!this.local) return
     let track: MediaStreamTrack

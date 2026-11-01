@@ -31,9 +31,19 @@ entre los navegadores** (WebRTC, cifrado de punta a punta). Para encontrarse,
 los navegadores usan relays públicos de la red Nostr, y ese intercambio va
 cifrado con la **clave de la oficina**.
 
+## Pantalla
+
+- **Barra de íconos a la izquierda**: 🗺️ Oficina (solo el mapa), 💬 Chat,
+  👥 Equipo, 🔔 Actividad (saludos, mensajes, quién pasó por tu escritorio,
+  quién se conectó), 📅 Calendario, ⌨️ Atajos y ⚙️ Ajustes. Cada una abre un
+  panel lateral que se encoge con « o Esc.
+- **Burbuja flotante abajo**: tu avatar (tocalo para cambiar el estado),
+  micrófono ▴, cámara ▴ (la flechita elige el dispositivo), 😊 reacciones,
+  🖥️ compartir pantalla, 🗨️ chat cercano y 🪑 volver a tu escritorio.
+
 ## Atajos y comandos
 
-Botón **⌨️ Atajos** en la barra de abajo (o tecla `?`).
+Pestaña **⌨️ Atajos** en la barra de la izquierda (o tecla `?`).
 
 | Tecla | Acción |
 |---|---|
@@ -44,6 +54,7 @@ Botón **⌨️ Atajos** en la barra de abajo (o tecla `?`).
 | V · Ctrl+Shift+V | Cámara |
 | B | Ocupado ↔ Disponible |
 | E | Ver el equipo |
+| 1 … 6 | Reacciones 👋 👍 ❤️ 😂 🎉 ✋ |
 | Esc | Cerrar paneles |
 
 Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,

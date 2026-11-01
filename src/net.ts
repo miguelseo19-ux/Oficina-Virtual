@@ -39,6 +39,7 @@ export interface NetEvents {
   onError: (msg: string) => void
   onChat: (msg: ChatMsg, peerId: string) => void
   onWave: (fromPerson: string, peerId: string) => void
+  onReact: (fromPerson: string, emoji: string) => void
 }
 
 export class Net {
@@ -47,6 +48,7 @@ export class Net {
   readonly players = new Map<string, RemotePlayer>()
   private sendState: (s: PlayerState, opts?: {target?: string}) => Promise<unknown>
   private chatAction: {send: (m: ChatMsg, opts?: {target?: string | string[]}) => Promise<unknown>}
+  private reactAction: {send: (m: {from: string; emoji: string}) => Promise<unknown>}
   private waveAction: {send: (m: {from: string}, opts?: {target?: string | string[]}) => Promise<unknown>}
   private last: PlayerState | null = null
   private lastSentAt = 0
@@ -90,6 +92,12 @@ export class Net {
       if (m && typeof m.from === 'string') ev.onWave(m.from, peerId)
     }
     this.waveAction = wave
+
+    const react = this.room.makeAction<{from: string; emoji: string}>('react')
+    react.onMessage = m => {
+      if (m && typeof m.from === 'string' && typeof m.emoji === 'string' && m.emoji.length <= 8) ev.onReact(m.from, m.emoji)
+    }
+    this.reactAction = react
 
     this.room.onPeerJoin = peerId => {
       if (this.last) void this.sendState(this.last, {target: peerId})
@@ -162,6 +170,10 @@ export class Net {
 
   sendWave(from: string, targets: string[]) {
     if (targets.length) void this.waveAction.send({from}, {target: targets})
+  }
+
+  sendReact(from: string, emoji: string) {
+    void this.reactAction.send({from, emoji})
   }
 
   /** Cuántos servidores de señalización están conectados. */

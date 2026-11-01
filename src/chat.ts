@@ -20,6 +20,9 @@ interface Hooks {
   onDirectMessage: (from: Person, text: string, open: () => void) => void
   /** Comandos que empiezan con "/" (no se envían como mensaje). */
   onCommand: (text: string) => void
+  /** El panel lateral debe mostrar el chat / se cerró el chat. */
+  onOpen: () => void
+  onClose: () => void
 }
 
 export class Chat {
@@ -50,8 +53,6 @@ export class Chat {
     }
     for (const list of Object.values(this.history)) for (const m of list) this.seen.add(m.id)
 
-    document.getElementById('btn-chat')!.onclick = () => this.toggle()
-    document.getElementById('chat-close')!.onclick = () => this.close()
     ;(document.getElementById('chat-form') as HTMLFormElement).onsubmit = e => {
       e.preventDefault()
       this.send()
@@ -74,6 +75,7 @@ export class Chat {
 
   open(ch?: Channel) {
     if (ch) this.active = ch
+    this.hooks.onOpen()
     this.panel.hidden = false
     this.unread[this.active] = 0
     this.renderChannels()
@@ -87,6 +89,14 @@ export class Chat {
   }
 
   close() {
+    const wasOpen = this.isOpen
+    this.panel.hidden = true
+    this.input.blur()
+    if (wasOpen) this.hooks.onClose()
+  }
+
+  /** Ocultar sin avisar (otra pestaña del panel ocupa el lugar). */
+  hide() {
     this.panel.hidden = true
     this.input.blur()
   }
