@@ -24,8 +24,9 @@ const canPickSpeaker = 'setSinkId' in HTMLMediaElement.prototype
 
 /**
  * Videollamada por proximidad.
- * Todos los que están parados sobre la alfombra del mismo escritorio
- * se ven y escuchan. Al salir de la alfombra, la llamada se corta sola.
+ * - Dentro de un cubículo o una sala: se ven y escuchan todos los que están en esa zona.
+ * - Fuera de ellos (pasillo, zona social): se habla con quienes están cerca (`nearby`).
+ * Al alejarse, la llamada se corta sola.
  */
 export class Call {
   private zone: number | null = null
@@ -46,6 +47,7 @@ export class Call {
   private btnCam = document.getElementById('btn-cam') as HTMLButtonElement
   private btnScreen = document.getElementById('btn-screen') as HTMLButtonElement
   private notice = document.getElementById('call-notice')!
+  private hint = document.getElementById('call-hint')!
   private devPanel = document.getElementById('devices')!
   private selCam = document.getElementById('sel-cam') as HTMLSelectElement
   private selMic = document.getElementById('sel-mic') as HTMLSelectElement
@@ -62,8 +64,9 @@ export class Call {
   constructor(
     private net: Net,
     private me: string,
-    private zoneLabel: (n: number) => string,
-    private myStatus: () => Status
+    private label: (zone: number | null) => string,
+    private myStatus: () => Status,
+    private nearby: () => Iterable<string>
   ) {
     setInterval(() => this.updateSpeaking(), 100)
     this.btnMic.onclick = () => this.toggleMic()
@@ -217,19 +220,32 @@ export class Call {
     return !!this.screenTrack || (!!this.camTrack && this.camOn)
   }
 
-  get active() {
-    return this.zone !== null
+  /** ¿Hay una llamada abierta con alguien? */
+  get inCall() {
+    return !this.panel.hidden
   }
 
   setZone(zone: number | null) {
     if (zone === this.zone) return
     this.zone = zone
-    if (zone === null) {
-      this.hangUp()
+    // Al cambiar de lugar, si no queda nadie con quien hablar, se corta en el acto.
+    if (this.wanted().size === 0) this.hangUp()
+    else this.reconcile()
+  }
+
+  /** Con quién hablar ahora: los de mi cubículo/sala o, fuera de ellos, los que están cerca. */
+  private wanted(): Set<string> {
+    const out = new Set<string>()
+    // "Ocupado" = no molestar: no entra ni recibe llamadas
+    if (this.myStatus() === 'busy') return out
+    if (this.zone !== null) {
+      for (const p of this.net.players.values()) {
+        if (p.zone === this.zone && p.status !== 'busy') out.add(p.peerId)
+      }
     } else {
-      this.title.textContent = this.zoneLabel(zone)
-      this.reconcile()
+      for (const id of this.nearby()) if (this.net.players.has(id)) out.add(id)
     }
+    return out
   }
 
   private async ensureLocal() {
@@ -256,8 +272,8 @@ export class Call {
           : 'No hay permiso de micrófono/cámara. Habilitalo en el candado de la barra de direcciones.'
       }
       this.acquiring = null
-      if (this.zone === null || this.releaseTimer !== null) {
-        // se fue de la zona (o quedó solo) mientras pedíamos permisos
+      if (this.wanted().size === 0) {
+        // se fue (o quedó solo) mientras pedíamos permisos
         stream?.getTracks().forEach(t => t.stop())
         return
       }
@@ -274,17 +290,11 @@ export class Call {
 
   /**
    * Recalcula a quién mandarle video. Llamar cuando cambia cualquier jugador.
-   * La cámara/micrófono solo se encienden cuando hay alguien más en la
-   * misma alfombra; si te quedás solo, se apagan a los pocos segundos.
+   * La cámara/micrófono solo se encienden cuando hay alguien más con quien
+   * hablar; si te quedás solo, se apagan a los pocos segundos.
    */
   reconcile() {
-    const desired = new Set<string>()
-    // "Ocupado" = no molestar: no entra ni recibe llamadas
-    if (this.zone !== null && this.myStatus() !== 'busy') {
-      for (const p of this.net.players.values()) {
-        if (p.zone === this.zone && p.status !== 'busy') desired.add(p.peerId)
-      }
-    }
+    const desired = this.wanted()
 
     if (desired.size > 0) {
       if (this.releaseTimer !== null) {
@@ -292,16 +302,16 @@ export class Call {
         this.releaseTimer = null
       }
       if (!this.local) void this.ensureLocal()
+      this.title.textContent = this.label(this.zone)
+      this.hint.textContent = this.zone === null ? 'Alejate unos pasos para cortar.' : 'Alejate de la alfombra para cortar.'
       this.panel.hidden = false
-    } else if (this.zone !== null) {
+    } else if (!this.panel.hidden || this.local || this.acquiring) {
       this.panel.hidden = true
       this.tiles.replaceChildren()
       if ((this.local || this.acquiring) && this.releaseTimer === null) {
         this.releaseTimer = window.setTimeout(() => {
           this.releaseTimer = null
-          if (this.zone !== null && this.desiredEmpty()) {
-            this.releaseMedia()
-          }
+          if (this.wanted().size === 0) this.releaseMedia()
         }, 4000)
       }
     }
@@ -327,11 +337,6 @@ export class Call {
       }
     }
     if (desired.size > 0) this.render(desired)
-  }
-
-  private desiredEmpty() {
-    if (this.myStatus() === 'busy') return true
-    return ![...this.net.players.values()].some(p => p.zone === this.zone && p.status !== 'busy')
   }
 
   onRemoteStream(stream: MediaStream, peerId: string) {
@@ -494,7 +499,6 @@ export class Call {
   // ── UI ─────────────────────────────────────────────────────
 
   private render(inZone: Set<string>) {
-    if (this.zone === null) return
     const wanted: {
       key: string
       name: string
@@ -574,6 +578,6 @@ export class Call {
 
   /** Refresca estados visuales (cámara apagada, etc.) — barato, se llama ~1/s. */
   tick() {
-    if (this.zone !== null) this.reconcile()
+    this.reconcile()
   }
 }

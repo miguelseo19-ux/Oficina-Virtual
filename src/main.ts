@@ -13,6 +13,11 @@ const LS_USER = 'ov.user'
 const LS_KEY = 'ov.key'
 const AWAY_AFTER_MS = 10 * 60 * 1000 // 10 minutos sin actividad → ausente
 const NEAR_RADIUS = 200
+// Charla por cercanía fuera de cubículos y salas (px de mundo; un avatar mide ~48 de ancho).
+// Se conecta al acercarse a menos de TALK_IN y se corta recién al alejarse más que TALK_OUT,
+// así no se corta y reconecta cuando alguien queda justo en el borde.
+const TALK_IN = 120
+const TALK_OUT = 170
 const DEBUG = new URLSearchParams(location.search).has('debug') // ?debug=1 muestra colisiones y zonas
 // Cuánto de la oficina se ve como máximo, en píxeles de arte (el mapa mide 652×320; un cubículo
 // mide ~78 de ancho y cada fila ~106 de alto). Más chico = cámara más cerca.
@@ -136,7 +141,7 @@ function start(me: Person, key: string) {
 
   function computeStatus(): Status {
     if (manualStatus !== 'available') return manualStatus
-    const inConversation = currentZone !== null && call?.active && !$('call').hidden
+    const inConversation = !!call?.inCall
     if (!inConversation && Date.now() - lastActivity > AWAY_AFTER_MS) return 'away'
     return 'available'
   }
@@ -170,7 +175,14 @@ function start(me: Person, key: string) {
     onReact: (from, emoji) => reactions.set(from, {emoji, start: performance.now()})
   })
   let currentZone: number | null = null
-  const call = new Call(net, me.id, zoneLabel, () => status)
+  // peerIds con los que estoy charlando por cercanía (fuera de cubículos y salas)
+  const talking = new Set<string>()
+  const callLabel = (zone: number | null) => {
+    if (zone !== null) return zoneLabel(zone)
+    const area = areaAt(pos.x, pos.y)
+    return area ? `Charla en la ${area.toLowerCase()}` : 'Charla en el pasillo'
+  }
+  const call = new Call(net, me.id, callLabel, () => status, () => talking)
 
   // burbujas de chat "cerca" sobre los personajes
   const bubbles = new Map<string, {text: string; until: number}>()
@@ -629,14 +641,20 @@ function start(me: Person, key: string) {
     }
 
     const z = zoneAt(pos.x, pos.y)
-    if (z !== currentZone) {
-      currentZone = z
+    const zoneChanged = z !== currentZone
+    if (zoneChanged) currentZone = z
+    const talkChanged = updateTalk()
+    if (zoneChanged) {
       call.setZone(z)
       if (z !== null) {
         const busy = [...net.players.values()].filter(p => p.zone === z && p.status === 'busy')
         for (const b of busy) toast(`${personById(b.person)?.name ?? 'Alguien'} está ocupado (no molestar)`, [], 'moon')
       }
-      document.title = z ? '● En llamada — Oficina virtual' : 'Oficina virtual'
+    } else if (talkChanged) {
+      call.reconcile()
+    }
+    if (zoneChanged || talkChanged) {
+      document.title = z !== null || talking.size ? '● En llamada — Oficina virtual' : 'Oficina virtual'
       renderRoster()
     }
 
@@ -662,7 +680,33 @@ function start(me: Person, key: string) {
     requestAnimationFrame(step)
   }
 
-  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone}
+  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking}
+
+  /**
+   * ¿Con quién estoy lo bastante cerca para charlar? Solo fuera de cubículos y salas, en el mismo
+   * ambiente (no a través de paredes) y si los dos están disponibles: ni ocupados ni ausentes
+   * (así nadie le prende la cámara a alguien que no está en la compu). Devuelve si cambió algo.
+   */
+  function updateTalk(): boolean {
+    let changed = false
+    const free = currentZone === null && status === 'available'
+    const myArea = areaAt(pos.x, pos.y)
+    for (const p of net.players.values()) {
+      const can = free && p.zone === null && p.status === 'available' && areaAt(p.x, p.y) === myArea
+      const near = can && Math.hypot(p.x - pos.x, p.y - pos.y) < (talking.has(p.peerId) ? TALK_OUT : TALK_IN)
+      if (near === talking.has(p.peerId)) continue
+      if (near) talking.add(p.peerId)
+      else talking.delete(p.peerId)
+      changed = true
+    }
+    for (const id of talking) {
+      if (!net.players.has(id)) {
+        talking.delete(id)
+        changed = true
+      }
+    }
+    return changed
+  }
 
   function myState() {
     return {
@@ -683,6 +727,7 @@ function start(me: Person, key: string) {
       net.update(myState(), now)
       refreshStatus()
       net.prune(now)
+      updateTalk()
       call.tick()
     }
   }, 1000)
@@ -726,6 +771,7 @@ function start(me: Person, key: string) {
       })
     }
     all.push({x: pos.x, y: pos.y, person: me, self: true, moving, status, dir: myDir})
+    drawTalks(now)
     all.sort((a, b) => a.y - b.y)
     for (const a of all) drawAvatar(a.x, a.y, a.person, a.self, a.moving, now, a.status, a.dir)
     for (const a of all) {
@@ -753,6 +799,10 @@ function start(me: Person, key: string) {
       for (const r of SOLIDS) ctx.strokeRect(r.x + 0.5, r.y + 0.5, r.w - 1, r.h - 1)
       ctx.strokeStyle = 'rgba(0,255,160,0.7)'
       for (const d of DESKS) ctx.strokeRect(d.zone.x + 2, d.zone.y + 2, d.zone.w - 4, d.zone.h - 4)
+      // alcance de la charla por cercanía
+      ctx.beginPath()
+      ctx.arc(pos.x, pos.y, TALK_IN, 0, Math.PI * 2)
+      ctx.stroke()
     }
 
     if (target) {
@@ -855,6 +905,64 @@ function start(me: Person, key: string) {
       ctx.fillText(label, bx + 0.8, by + 12.5)
       spaced(0)
     }
+  }
+
+  /**
+   * Charlas por cercanía: línea punteada cálida entre quienes están hablando y un brillo a sus pies.
+   * Las mías salen de `talking`; las de los demás se estiman con sus posiciones.
+   */
+  function drawTalks(now: number) {
+    type Dot = {id: string; x: number; y: number; zone: number | null; status: Status; area: string | null}
+    const dots: Dot[] = [{id: 'me', x: pos.x, y: pos.y, zone: currentZone, status, area: areaAt(pos.x, pos.y)}]
+    for (const p of net.players.values()) {
+      dots.push({id: p.peerId, x: p.rx, y: p.ry, zone: p.zone, status: p.status, area: areaAt(p.x, p.y)})
+    }
+    const pairs: [Dot, Dot][] = []
+    for (let i = 0; i < dots.length; i++) {
+      for (let j = i + 1; j < dots.length; j++) {
+        const a = dots[i]
+        const b = dots[j]
+        const linked =
+          a.id === 'me'
+            ? talking.has(b.id)
+            : a.zone === null && b.zone === null && a.status === 'available' && b.status === 'available' &&
+              a.area === b.area && Math.hypot(a.x - b.x, a.y - b.y) < TALK_IN
+        if (linked) pairs.push([a, b])
+      }
+    }
+    if (!pairs.length) return
+    const pulse = 0.55 + Math.sin(now / 400) * 0.15
+    ctx.save()
+    const lit = new Set<Dot>()
+    for (const [a, b] of pairs) {
+      lit.add(a)
+      lit.add(b)
+    }
+    ctx.globalCompositeOperation = 'lighter'
+    for (const d of lit) {
+      const fy = d.y + 10
+      const g = ctx.createRadialGradient(d.x, fy, 0, d.x, fy, 46)
+      g.addColorStop(0, `rgba(255,140,60,${0.32 * pulse})`)
+      g.addColorStop(1, 'rgba(255,140,60,0)')
+      ctx.fillStyle = g
+      ctx.beginPath()
+      ctx.ellipse(d.x, fy, 46, 18, 0, 0, Math.PI * 2)
+      ctx.fill()
+    }
+    ctx.globalCompositeOperation = 'source-over'
+    ctx.strokeStyle = `rgba(250,70,22,${pulse})`
+    ctx.shadowColor = 'rgba(250,70,22,0.9)'
+    ctx.shadowBlur = 8
+    ctx.lineWidth = 2
+    ctx.setLineDash([6, 7])
+    ctx.lineDashOffset = -now / 60
+    for (const [a, b] of pairs) {
+      ctx.beginPath()
+      ctx.moveTo(a.x, a.y + 10)
+      ctx.lineTo(b.x, b.y + 10)
+      ctx.stroke()
+    }
+    ctx.restore()
   }
 
   /** Sala grupal: brillo cuando hay llamada + cartel con cuántos hay. */

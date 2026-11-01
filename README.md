@@ -8,6 +8,11 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
   **videollamada** con quien esté ahí. Al alejarte, se corta sola.
 - La cámara y el micrófono solo se encienden cuando hay alguien más en la
   alfombra.
+- **Charla por cercanía**: fuera de los cubículos y las salas (pasillo, rincones,
+  zona social), si te acercás a pocos pasos de alguien se abre la videollamada
+  entre ustedes, y se corta al alejarte. En el mapa, una línea punteada naranja
+  une a quienes están charlando. No conecta a través de paredes y no incluye a
+  quien está *Ocupado* o *Ausente*.
 - Si alguien llega a tu escritorio y no estás, te avisa con sonido y
   notificación ("Ir a mi escritorio").
 - Botones para silenciar micrófono, apagar cámara y compartir pantalla.

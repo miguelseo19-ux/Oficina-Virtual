@@ -13,7 +13,13 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
   viajan por data channels; el video por WebRTC directo.
 - **Clave de la oficina** = `password` de Trystero (no está en el código).
 - **Llamada por proximidad**: estar dentro de un cubículo (`DESKS[].zone`) o de una
-  sala (`ROOMS`) = estar en la videollamada de esa zona (`src/call.ts`).
+  sala (`ROOMS`) = estar en la videollamada de esa zona (`src/call.ts`). Fuera de
+  ellos, charla por cercanía: `updateTalk()` en `main.ts` arma el set `talking`
+  (mismo `areaAt`, ambos disponibles, se conecta a < `TALK_IN` y se corta a >
+  `TALK_OUT`) y `Call` lo usa cuando `zone === null`.
+- Probar con 2 personas sin tocar los relays públicos: levantar un relay Nostr local
+  y abrir con `?relay=ws://localhost:7777` (si no, quien esté conectado con la clave
+  real ve un aviso de "otra clave").
 
 ## Archivos clave
 | Archivo | Qué hace |
