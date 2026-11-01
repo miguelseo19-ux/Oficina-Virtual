@@ -5,7 +5,9 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 
 ## Cómo funciona
 - **Sin servidor propio.** Vite + TypeScript, se publica en GitHub Pages desde la
-  carpeta `docs/` (rama `main`, carpeta `/docs`).
+  carpeta `docs/` (rama `main`, carpeta `/docs`) y en Vercel (`vercel.json`:
+  compila en cada push a `main` y sirve `docs/`). `base: './'` en Vite hace que
+  ande en los dos (subcarpeta en Pages, raíz en Vercel): no cambiarlo.
 - **Tiempo real P2P** con `trystero` (señalización por relays Nostr públicos, lista
   fija en `src/config.ts` → `RELAY_URLS`). Posiciones, chat, saludos y reacciones
   viajan por data channels; el video por WebRTC directo.

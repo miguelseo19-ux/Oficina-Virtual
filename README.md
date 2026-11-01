@@ -118,7 +118,7 @@ Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,
 
 ## Cómo usarla
 
-1. Abrir la URL de la oficina (GitHub Pages, ver abajo).
+1. Abrir la URL de la oficina (Vercel o GitHub Pages, ver abajo).
 2. Elegir tu nombre y escribir la **clave de la oficina** (la misma para todos;
    se acuerda entre ustedes y se comparte por fuera, por ejemplo por WhatsApp).
 3. Aceptar el permiso de cámara/micrófono cuando el navegador lo pida.
@@ -144,6 +144,27 @@ Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,
 
 La carpeta `docs/` es la versión ya compilada que se publica. La carpeta `src/`
 es el código fuente.
+
+## Publicar en Vercel
+
+`vercel.json` ya deja todo configurado: Vercel instala, corre `npm run build` y
+publica la carpeta `docs/`.
+
+1. Entrar a [vercel.com](https://vercel.com) con **Continue with GitHub**.
+2. **Add New… → Project** → importar el repo `Oficina-Virtual` (si no aparece,
+   tocar *Adjust GitHub App Permissions* y darle acceso a ese repo).
+3. Dejar la configuración que detecta (Vite, salida `docs`) → **Deploy**.
+4. La oficina queda en `https://<proyecto>.vercel.app`. Ese es el link para el
+   equipo.
+
+Cada push a `main` vuelve a publicar solo. Las otras ramas generan versiones de
+prueba que, por defecto, piden iniciar sesión en Vercel.
+
+GitHub Pages puede seguir andando en paralelo: las dos URLs llevan a **la misma
+oficina** (mismo `APP_ID`/`ROOM_ID` y la misma clave), así que no importa por
+cuál entre cada uno. Lo que guarda cada navegador (persona elegida, dispositivos,
+historial del chat) es por dominio: la primera vez en Vercel hay que elegirlos de
+nuevo.
 
 ## Agregar o cambiar personas
 
