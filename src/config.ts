@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 //  CONFIGURACIÓN DE LA OFICINA
 //  Para agregar a alguien: sumá una entrada en PEOPLE con un
-//  `desk` libre (1 a 12). No hace falta tocar nada más.
+//  `desk` libre (1 a 12) y un `sprite` (Adam, Alex, Alex_b, Amelia, Bob).
 // ─────────────────────────────────────────────────────────────
 
 export interface Person {
@@ -10,14 +10,15 @@ export interface Person {
   role: string
   color: string
   desk: number // 1..12
+  sprite: string // personaje pixel art: Adam, Alex, Alex_b, Amelia, Bob
 }
 
 export const PEOPLE: Person[] = [
-  {id: 'miguel', name: 'Miguel Marin', role: 'CEO', color: '#b8693a', desk: 1},
-  {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#4f7ea6', desk: 2},
-  {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3},
-  {id: 'carina', name: 'Carina', role: 'Project Manager', color: '#8a6bb8', desk: 4},
-  {id: 'agus', name: 'Agus', role: 'Editor', color: '#c9a04f', desk: 5}
+  {id: 'miguel', name: 'Miguel Marin', role: 'CEO', color: '#b8693a', desk: 1, sprite: 'Adam'},
+  {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#4f7ea6', desk: 2, sprite: 'Alex'},
+  {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3, sprite: 'Bob'},
+  {id: 'carina', name: 'Carina', role: 'Project Manager', color: '#8a6bb8', desk: 4, sprite: 'Amelia'},
+  {id: 'agus', name: 'Agus', role: 'Editor', color: '#c9a04f', desk: 5, sprite: 'Alex_b'}
 ]
 
 export const DESK_COUNT = 12

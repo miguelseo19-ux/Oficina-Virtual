@@ -116,7 +116,7 @@ export const CORRIDOR = {
   meeting: {
     rug: {x: 412, y: C.y + 36, w: 58, h: 52},
     table: {x: 432, y: C.y + 54, w: 18, h: 16},
-    board: {x: 455, y: C.y + 22, w: 18, h: 16},
+    board: {x: 448, y: C.y + 24, w: 26, h: 13},
     pendant: {x: 441, y: C.y + 50}
   }
 }

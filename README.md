@@ -53,6 +53,19 @@ El mapa es una escena pixel art generada por código (sin imágenes externas):
 
 Para ver colisiones (rojo) y zonas de llamada (verde): agregar `?debug=1` a la URL.
 
+### Assets de LimeZu
+
+Personajes animados y parte del mobiliario vienen de **Modern Interiors**
+(versión gratuita) de [LimeZu](https://limezu.itch.io/moderninteriors), con
+licencia de **uso no comercial**. Están recortados en `public/assets/limezu/`
+(ver `CREDITOS.txt`) y se cargan con `src/assets.ts`. Si no cargan, la app usa
+el dibujo generado por código.
+
+- Cada persona elige su personaje con `sprite` en `src/config.ts`
+  (`Adam`, `Alex`, `Alex_b`, `Amelia`, `Bob`).
+- Hojas de personaje: 2 filas (caminar / reposo) × 24 cuadros de 16×32,
+  6 por dirección (derecha, arriba, izquierda, abajo).
+
 **Para mayor fidelidad** se pueden reemplazar sprites uno por uno por PNG
 dibujados a mano (mismas medidas): escritorio con monitores (46×15), silla,
 plantas (8×10 y 12×14), sillones (13×12), barra de café (52×18), mesa redonda,

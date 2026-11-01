@@ -2,6 +2,7 @@ import './style.css'
 import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
 import {collides, deskByNum, DESKS, PX, SOLIDS, WORLD, zoneAt} from './map'
 import {buildScene} from './scene'
+import {DIR_INDEX, FRAME, loadAssets, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
 import {Chat} from './chat'
@@ -94,6 +95,10 @@ function start(me: Person, key: string) {
   let target: {x: number; y: number} | null = null
   let walkPhase = 0
   let moving = false
+  let myDir: Dir = 'down'
+  const remoteDir = new Map<string, Dir>()
+  const dirOf = (dx: number, dy: number): Dir =>
+    Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : dy > 0 ? 'down' : 'up'
   const keys = new Set<string>()
 
   // ── estado (disponible / ocupado / ausente) ──
@@ -610,7 +615,10 @@ function start(me: Person, key: string) {
       if (!collides(pos.x, pos.y + vy)) pos.y += vy
       moving = pos.x !== ox || pos.y !== oy
       if (!moving) target = null // trabado contra algo
-      if (moving) walkPhase += dt * 12
+      if (moving) {
+        walkPhase += dt * 12
+        myDir = dirOf(pos.x - ox, pos.y - oy)
+      }
     }
 
     const z = zoneAt(pos.x, pos.y)
@@ -692,20 +700,25 @@ function start(me: Person, key: string) {
     for (const d of DESKS) drawDeskState(d.num, occupancy.get(d.num) ?? 0, !!deskOwner(d.num) && online.has(deskOwner(d.num)!.id), now)
     for (const d of DESKS) drawPlate(d.num)
 
-    const all: {x: number; y: number; person: Person | undefined; self: boolean; moving: boolean; status: Status}[] = []
+    const all: {x: number; y: number; person: Person | undefined; self: boolean; moving: boolean; status: Status; dir: Dir}[] = []
     for (const p of net.players.values()) {
+      const vx = p.x - p.rx
+      const vy = p.y - p.ry
+      const mov = Math.hypot(vx, vy) > 1
+      if (mov) remoteDir.set(p.peerId, dirOf(vx, vy))
       all.push({
         x: p.rx,
         y: p.ry,
         person: personById(p.person),
         self: false,
-        moving: Math.hypot(p.x - p.rx, p.y - p.ry) > 1,
-        status: p.status
+        moving: mov,
+        status: p.status,
+        dir: remoteDir.get(p.peerId) ?? 'down'
       })
     }
-    all.push({x: pos.x, y: pos.y, person: me, self: true, moving, status})
+    all.push({x: pos.x, y: pos.y, person: me, self: true, moving, status, dir: myDir})
     all.sort((a, b) => a.y - b.y)
-    for (const a of all) drawAvatar(a.x, a.y, a.person, a.self, a.moving, now, a.status)
+    for (const a of all) drawAvatar(a.x, a.y, a.person, a.self, a.moving, now, a.status, a.dir)
     for (const a of all) {
       const b = a.person && bubbles.get(a.person.id)
       if (b && b.until > now) drawBubble(a.x, a.y, b.text)
@@ -719,7 +732,7 @@ function start(me: Person, key: string) {
           ctx.globalAlpha = age < 2000 ? 1 : 1 - (age - 2000) / 600
           ctx.font = '30px system-ui, "Apple Color Emoji", "Segoe UI Emoji", sans-serif'
           ctx.textAlign = 'center'
-          ctx.fillText(r.emoji, a.x, a.y - 58 - age / 45)
+          ctx.fillText(r.emoji, a.x, a.y - (assets ? 126 : 58) - age / 45)
           ctx.restore()
         }
       }
@@ -766,7 +779,13 @@ function start(me: Person, key: string) {
   }
 
   // Decorado pixel art (estático, se arma una vez) — ver src/scene
-  const scene = buildScene()
+  let assets: Assets | null = null
+  let scene = buildScene()
+  void loadAssets().then(a => {
+    if (!a) return
+    assets = a
+    scene = buildScene(a)
+  })
 
   function drawScene() {
     ctx.imageSmoothingEnabled = false
@@ -870,6 +889,71 @@ function start(me: Person, key: string) {
     self: boolean,
     mov: boolean,
     now: number,
+    st: Status,
+    dir: Dir
+  ) {
+    const sheet = p && assets?.characters[p.sprite]
+    if (!sheet) return drawAvatarCircle(x, y, p, self, mov, now, st)
+    // pies en (x, y + 12); el sprite de 16×32 se escala igual que el decorado (×PX)
+    const feet = y + 12
+    const w = FRAME.w * PX
+    const h = FRAME.h * PX
+    ctx.save()
+    if (st === 'away') ctx.globalAlpha = 0.5
+    // sombra y aro propio
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'
+    ctx.beginPath()
+    ctx.ellipse(x, feet - 2, 17, 6, 0, 0, Math.PI * 2)
+    ctx.fill()
+    if (self) {
+      ctx.save()
+      ctx.shadowColor = 'rgba(150,88,47,0.95)'
+      ctx.shadowBlur = 14
+      ctx.strokeStyle = 'rgba(150,88,47,0.95)'
+      ctx.lineWidth = 2
+      ctx.beginPath()
+      ctx.ellipse(x, feet - 2, 22, 8, 0, 0, Math.PI * 2)
+      ctx.stroke()
+      ctx.restore()
+    }
+    const row = mov ? 0 : 1
+    const fps = mov ? 10 : 6
+    const frame = Math.floor(now / (1000 / fps)) % FRAME.perDir
+    const sx = (DIR_INDEX[dir] * FRAME.perDir + frame) * FRAME.w
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(sheet, sx, row * FRAME.h, FRAME.w, FRAME.h, Math.round(x - w / 2), Math.round(feet - h), w, h)
+    ctx.imageSmoothingEnabled = true
+    // etiqueta con el nombre y el estado
+    const name = (self ? 'Vos' : (p?.name.split(' ')[0] ?? 'Invitado')).toUpperCase()
+    ctx.font = `500 9px ${MONO}`
+    spaced(1.4)
+    const tw = ctx.measureText(name).width + 26
+    const ty = feet - h - 4
+    roundRect(x - tw / 2, ty - 16, tw, 18, 9)
+    ctx.fillStyle = 'rgba(10,8,12,0.85)'
+    ctx.fill()
+    ctx.strokeStyle = self ? 'rgba(150,88,47,0.8)' : C.hair
+    ctx.lineWidth = 1
+    ctx.stroke()
+    ctx.globalAlpha = 1
+    ctx.fillStyle = STATUS_COLOR[st]
+    ctx.beginPath()
+    ctx.arc(x - tw / 2 + 9, ty - 7, 3.5, 0, Math.PI * 2)
+    ctx.fill()
+    ctx.fillStyle = '#fff'
+    ctx.textAlign = 'center'
+    ctx.fillText(name, x + 5.7, ty - 3.5)
+    spaced(0)
+    ctx.restore()
+  }
+
+  function drawAvatarCircle(
+    x: number,
+    y: number,
+    p: Person | undefined,
+    self: boolean,
+    mov: boolean,
+    now: number,
     st: Status
   ) {
     const color = p?.color ?? '#888'
@@ -935,7 +1019,7 @@ function start(me: Person, key: string) {
     const w = Math.min(260, ctx.measureText(t).width + 22)
     const h = 28
     const bx = x - w / 2
-    const by = y - 86
+    const by = y - (assets ? 140 : 86)
     ctx.fillStyle = '#ffffff'
     roundRect(bx, by, w, h, 10)
     ctx.fill()

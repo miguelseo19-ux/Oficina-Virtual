@@ -365,3 +365,5 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
   #pill .split .caret { display: none; }
   #pill .sep { margin: 0 2px; }
 }
+
+#settings a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--magenta); }

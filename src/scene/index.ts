@@ -10,6 +10,7 @@
  * aparte, en src/main.ts, encima de esta imagen.
  */
 import {deskOwner} from '../config'
+import {drawProp, type Assets} from '../assets'
 import {ART, CORRIDOR, CUBE_PLANTS, DESKS, L, SHELVES} from '../map'
 import {
   armchair,
@@ -39,7 +40,11 @@ import {
 } from './sprites'
 import {roundOutline, type G} from './pixel'
 
-export function buildScene(): HTMLCanvasElement {
+let A: Assets | null = null
+
+/** Arma la escena. Con `assets` usa los sprites de LimeZu; sin ellos, el dibujo por código. */
+export function buildScene(assets: Assets | null = null): HTMLCanvasElement {
+  A = assets
   const cv = document.createElement('canvas')
   cv.width = ART.w
   cv.height = ART.h
@@ -125,13 +130,15 @@ function drawCubicle(g: G, d: (typeof DESKS)[number]) {
     // decoración en el muro del fondo (genérica; varía por escritorio)
     const kind = (d.num - 1) % 6
     neon(g, kind, cx, 16, NEON_COLORS[kind])
-    picture(g, d.cell.x + 6, 13, 9, 6)
+    if (A) drawProp(g, A, d.num % 3 === 0 ? 'paintA' : d.num % 3 === 1 ? 'landscape' : 'paintC', d.cell.x + 13, 21)
+    else picture(g, d.cell.x + 6, 13, 9, 6)
     bookshelf(g, d.cell.x + d.cell.w - 18, 13, 14, 8, d.num * 31)
   }
   desk(g, d.tableP.x, d.tableP.y, d.tableP.w, d.tableP.h, d.num * 17)
   chair(g, d.chairP.x, d.chairP.y)
   const p = CUBE_PLANTS[d.num - 1]
-  plant(g, p.x, p.y, p.w, p.h, d.num * 23)
+  if (A) drawProp(g, A, d.top ? 'bigPlant' : 'smallPlant', p.x + p.w / 2, p.y + p.h)
+  else plant(g, p.x, p.y, p.w, p.h, d.num * 23)
   if (!d.top) {
     const s = SHELVES[d.num - 1]
     if (s) bookshelf(g, s.x, s.y, s.w, s.h, d.num * 41)
@@ -186,11 +193,13 @@ function drawCorridor(g: G) {
   const lr = lounge.rug
   roundRug(g, lr.x + lr.w / 2, lr.y + lr.h / 2, lr.w / 2, lr.h / 2, '#6a4a5a')
   bookshelf(g, lounge.shelf.x, lounge.shelf.y, lounge.shelf.w, lounge.shelf.h, 77)
-  plant(g, lounge.shelf.x + lounge.shelf.w + 2, lounge.shelf.y - 2, 9, 14, 5)
+  if (A) drawProp(g, A, 'palm', lounge.shelf.x + lounge.shelf.w + 7, lounge.shelf.y + 12)
+  else plant(g, lounge.shelf.x + lounge.shelf.w + 2, lounge.shelf.y - 2, 9, 14, 5)
   for (const c of lounge.chairs) armchair(g, c.x, c.y, c.w, c.h)
   roundTable(g, lounge.table.x + lounge.table.w / 2, lounge.table.y + lounge.table.h / 2, lounge.table.w / 2, lounge.table.h / 2)
   rect(g, lounge.table.x + 6, lounge.table.y + 3, 2, 2, PAL.paper)
-  floorLamp(g, lounge.lamp.x, lounge.lamp.y)
+  if (A) drawProp(g, A, 'floorLamp', lounge.lamp.x, lounge.lamp.y + 13)
+  else floorLamp(g, lounge.lamp.x, lounge.lamp.y)
   // banco junto a la ventana
   const b = lounge.bench
   rect(g, b.x, b.y, b.w, b.h, PAL.shelfDk)
@@ -210,14 +219,18 @@ function drawCorridor(g: G) {
   chamfer(g, dk.x + 1, dk.y + 1, dk.w - 2, dk.h - 5, mix(PAL.deskTop, '#000000', 0.2), 3)
   for (let i = 0; i < 3; i++) rect(g, dk.x + 6, dk.y + 4 + i * 4, dk.w - 12, 1, PAL.deskEdge)
   laptop(g, dk.x + dk.w / 2 - 4, dk.y + 4)
-  plant(g, dk.x + 14, dk.y - 6, 10, 14, 61)
+  if (A) drawProp(g, A, 'globe', dk.x + 16, dk.y + 12)
+  else plant(g, dk.x + 14, dk.y - 6, 10, 14, 61)
   rect(g, dk.x + dk.w - 18, dk.y + 3, 1, 6, PAL.metalDk)
   ellipse(g, dk.x + dk.w - 18, dk.y + 3, 3, 2, PAL.lamp)
   rect(g, dk.x + dk.w - 30, dk.y + 6, 5, 4, PAL.paper)
   island.stools.forEach((s, i) => stool(g, s.x, s.y, i === 1 ? PAL.cream : PAL.orange))
   for (const p of island.plants) {
-    rect(g, p.x + 1, p.y + p.h - 5, p.w - 2, 5, '#cfc6b8')
-    plant(g, p.x, p.y - 4, p.w, p.h, p.x)
+    if (A) drawProp(g, A, 'tree', p.x + p.w / 2, p.y + p.h)
+    else {
+      rect(g, p.x + 1, p.y + p.h - 5, p.w - 2, 5, '#cfc6b8')
+      plant(g, p.x, p.y - 4, p.w, p.h, p.x)
+    }
   }
 
   // Barra de café
@@ -255,8 +268,11 @@ function drawCorridor(g: G) {
   }
   roundTable(g, mcx, mcy, mt.w / 2, mt.h / 2)
   laptop(g, mcx - 4, mcy - 4)
-  whiteboard(g, meeting.board.x, meeting.board.y, meeting.board.w, meeting.board.h)
-  plant(g, mr.x + mr.w - 8, mr.y + mr.h - 10, 10, 14, 91)
+  const bd = meeting.board
+  if (A) drawProp(g, A, 'corkboard', bd.x + bd.w / 2, bd.y + bd.h)
+  else whiteboard(g, bd.x, bd.y, bd.w, bd.h)
+  if (A) drawProp(g, A, 'palm', mr.x + mr.w - 3, mr.y + mr.h + 2)
+  else plant(g, mr.x + mr.w - 8, mr.y + mr.h - 10, 10, 14, 91)
   // lámpara colgante
   ellipse(g, meeting.pendant.x, meeting.pendant.y - 22, 4, 2, '#2b2230')
   rect(g, meeting.pendant.x - 3, meeting.pendant.y - 21, 6, 1, PAL.lamp)
@@ -281,7 +297,7 @@ function drawLighting(g: G) {
   for (const d of DESKS) glow(g, d.tableP.x + d.tableP.w - 4, d.tableP.y + 3, 16, PAL.lamp, 0.22)
   // pasillo
   const {lounge, island, meeting} = CORRIDOR
-  glow(g, lounge.lamp.x, lounge.lamp.y + 2, 36, PAL.lamp, 0.3)
+  glow(g, lounge.lamp.x, A ? lounge.lamp.y - 12 : lounge.lamp.y + 2, 36, PAL.lamp, 0.3)
   glow(g, island.desk.x + island.desk.w - 18, island.desk.y + 3, 30, PAL.lamp, 0.28)
   glow(g, meeting.pendant.x, meeting.pendant.y - 18, 40, PAL.lamp, 0.24)
   // ventanas laterales: luz fría de la ciudad
