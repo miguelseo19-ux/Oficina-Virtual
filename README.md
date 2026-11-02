@@ -202,10 +202,12 @@ Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,
 ## Cómo usarla
 
 1. Abrir **https://www.myconsulting.cloud/office** (también sirve
-   `myconsulting.cloud/oficina-virtual`, y siguen andando las URLs de Vercel y
-   GitHub Pages, ver abajo).
-2. Elegir tu nombre y escribir la **clave de la oficina** (la misma para todos;
-   se acuerda entre ustedes y se comparte por fuera, por ejemplo por WhatsApp).
+   `myconsulting.cloud/oficina-virtual`; las URLs viejas de Vercel y GitHub
+   Pages llevan ahí).
+2. **Entrar con Google** con tu cuenta de trabajo. La oficina sabe quién sos y
+   muestra tu calendario. Mientras el ingreso con Google no esté configurado
+   (ver abajo), se entra como antes: elegir tu nombre y escribir la **clave de
+   la oficina**.
 3. Aceptar el permiso de cámara/micrófono cuando el navegador lo pida.
 
 > Quien entra con otra clave queda en una oficina separada y no ve a nadie.
@@ -229,6 +231,31 @@ Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,
 
 La carpeta `docs/` es la versión ya compilada que se publica. La carpeta `src/`
 es el código fuente.
+
+## Ingreso con Google y calendario
+
+El servidor es el **Dashboard** (rutas `/api/office/*`, ver su
+`lib/oficina/sesion.ts`): comprueba que la cuenta de Google sea del equipo,
+guarda la sesión cifrada en una cookie y le pasa a la oficina quién sos y la
+clave de la sala (nadie la escribe). En la oficina: `src/session.ts` (qué
+pantalla mostrar al abrir) y `src/calendar.ts` (reuniones, "En reunión", avisos).
+
+- **Calendario** (barra de la izquierda): reuniones de hoy y mañana, con
+  *Unirse* si tienen link. Solo lectura: la oficina no puede crear ni cambiar
+  nada.
+- **En reunión**: durante un evento con horario (no marcado "disponible") quedás
+  *En reunión*: funciona como Ocupado (no te entran llamadas de la oficina) y
+  los demás lo ven así. Avisa 5 min antes y al empezar. Cada reunión se puede
+  *Ignorar*. Ocupado o Ausente elegidos a mano ganan.
+
+Configuración (una vez, en Google Cloud y en Vercel → proyecto Dashboard →
+Environment Variables): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (cliente
+OAuth "Aplicación web" con la URI de redirección
+`https://www.myconsulting.cloud/api/office/auth/callback`),
+`OFFICE_SESSION_SECRET` (32+ caracteres al azar), `OFFICE_KEY` (la clave actual
+de la oficina) y `OFFICE_PEOPLE` (`miguel:correo, nico:correo, …`, con los ids
+de `src/config.ts`). Para sumar o sacar a alguien se edita `OFFICE_PEOPLE` y se
+vuelve a desplegar el Dashboard; sacarlo le quita el acceso al momento.
 
 ## Dominio: myconsulting.cloud/office
 

@@ -172,8 +172,36 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
 }
 .cal-empty h3 { font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: -0.01em; }
 .cal-empty p { font-size: 13px; }
-#btn-calendar { background: var(--ghost); border-radius: 10px; padding: 12px 18px; font-weight: 600; }
-#btn-calendar[disabled] { opacity: 0.45; cursor: not-allowed; }
+/* Ingreso con Google */
+.google-btn {
+  display: flex; align-items: center; justify-content: center; gap: 12px; margin-top: 4px;
+  background: #fff; color: #1f1f1f; padding: 14px 22px; border-radius: 10px;
+  font-weight: 600; font-size: 15px; text-decoration: none; transition: transform 200ms var(--ease), box-shadow 200ms;
+}
+.google-btn:hover { transform: translateY(-2px); box-shadow: 0 12px 32px rgba(255, 255, 255, 0.25); }
+
+/* Calendario */
+.cal-connect { background: #fff; color: var(--bg); border-radius: 10px; padding: 11px 18px; font-weight: 600; font-size: 14px; text-decoration: none; }
+.cal-list { list-style: none; margin: 0 0 6px; padding: 0; display: grid; gap: 8px; }
+.cal-ev {
+  display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 10px; align-items: center;
+  padding: 10px 12px; border-radius: 12px; background: var(--card); border: 1px solid var(--hairline);
+}
+.cal-ev.past { opacity: 0.45; }
+.cal-ev.now { border-color: rgba(150, 88, 47, 0.7); background: rgba(150, 88, 47, 0.12); }
+.cal-time { display: grid; font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em; color: var(--muted); line-height: 1.4; }
+.cal-time span:first-child { color: var(--fg); }
+.cal-info { min-width: 0; display: grid; gap: 2px; }
+.cal-info b {
+  font-size: 14px; font-weight: 600; line-height: 1.3; overflow: hidden;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: anywhere;
+}
+.cal-info small { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent-warm); }
+.cal-acts { display: grid; gap: 2px; justify-items: end; }
+.cal-join { background: #fff; color: var(--bg); border-radius: 8px; padding: 6px 11px; font-weight: 600; font-size: 12px; text-decoration: none; }
+.cal-ignore, .cal-refresh { color: var(--muted); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; padding: 4px; }
+.cal-ignore:hover, .cal-refresh:hover { color: var(--fg); }
+.cal-foot { margin-top: 14px; }
 
 /* Chat */
 #chat { display: flex; flex-direction: column; }

@@ -29,6 +29,7 @@ export interface MiniDeps {
   pos: () => {x: number; y: number}
   zone: () => number | null
   status: () => Status
+  meeting: () => boolean // en una reunión del calendario (se muestra "En reunión" en vez de "No molestar")
   players: () => Iterable<RemotePlayer>
   talking: () => Set<string>
   sameArea: (x: number, y: number) => boolean // mismo ambiente que yo (no a través de paredes)
@@ -204,7 +205,7 @@ export class MiniWindow {
     if (!el) return
     const {call, me} = this.d
     const st = this.d.status()
-    el.where.textContent = `${this.d.where()} · ${STATUS_NAME[st]}`
+    el.where.textContent = `${this.d.where()} · ${this.d.meeting() ? 'En reunión' : STATUS_NAME[st]}`
     el.dot.style.background = STATUS_COLOR[st]
     el.mic.classList.toggle('off', !call.micOn)
     el.cam.classList.toggle('off', !call.camOn)

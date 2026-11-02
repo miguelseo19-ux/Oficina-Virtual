@@ -15,7 +15,14 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 - **Tiempo real P2P** con `trystero` (señalización por relays Nostr públicos, lista
   fija en `src/config.ts` → `RELAY_URLS`). Posiciones, chat, saludos y reacciones
   viajan por data channels; el video por WebRTC directo.
-- **Clave de la oficina** = `password` de Trystero (no está en el código).
+- **Clave de la oficina** = `password` de Trystero (no está en el código). Con el ingreso con Google
+  la entrega el Dashboard (`OFFICE_KEY`) a las cuentas de `OFFICE_PEOPLE`; mientras no esté
+  configurado (503) o en localhost, sigue el login de persona + clave (`setupLogin`).
+- **Ingreso con Google y calendario**: servidor = Dashboard, rutas `/api/office/*` (auth/login,
+  auth/callback, session, calendar, auth/logout; sesión cifrada en cookie httpOnly). En la
+  oficina: `src/session.ts` (`boot()`: google / login / classic; redirige otros dominios a
+  `myconsulting.cloud/office`) y `src/calendar.ts` ("En reunión" = status `busy` + `meeting` en
+  `PlayerState`).
 - **Llamada por proximidad**: estar dentro de un cubículo (`DESKS[].zone`) o de una
   sala (`ROOMS`) = estar en la videollamada de esa zona (`src/call.ts`). Fuera de
   ellos, charla por cercanía: `updateTalk()` en `main.ts` arma el set `talking`
@@ -40,6 +47,8 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 | `src/path.ts` | Búsqueda de camino (A*) sobre la grilla de colisiones de `map.ts`, con suavizado. La usan el clic en el mapa y "ir a mi escritorio" (`walkTo` en `main.ts`) |
 | `src/net.ts` | Capa Trystero (state, chat, wave, react) |
 | `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla. Vistas de la llamada (`data-layout` en `#call`: `side` al costado, `grid` en grande sobre la oficina con `fitGrid()`, `present` pantalla compartida en grande + caras al costado; `ov.llamada.vista`). La pantalla va como otra transmisión con metadata `{screen: true}` y el estado `screen` en `PlayerState` |
+| `src/session.ts` | Ingreso: decide al abrir entre sesión de Google, botón "Entrar con Google" o login de clave; logout |
+| `src/calendar.ts` | Calendario de Google: reuniones de hoy/mañana, "En reunión" automático, avisos, panel lateral |
 | `src/chat.ts` | Chat General / Cerca / privados (historial en localStorage) |
 | `src/icons.ts` | Íconos SVG de línea fina (no usar emojis como íconos) |
 | `src/style.css` | Marca *Private Session II*: negro `#020003`, bronce `#96582f`, naranja `#fa4616`, Space Grotesk + JetBrains Mono, títulos en MAYÚSCULAS |
@@ -63,7 +72,8 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 
 ## Pendientes conocidos
 - Personajes sentados al llegar a su escritorio (el pack trae animaciones `sit`).
-- Calendario (Google Calendar) — requiere crear un OAuth Client ID en Google Cloud.
+- Ingreso con Google + calendario: código listo; falta configurar Google Cloud y las variables en
+  Vercel (Dashboard). Probar el ingreso real una vez configurado.
 - Si alguna red bloquea P2P: agregar TURN en `TURN_SERVERS`.
 - Posible futuro: estilo 3D/isométrico con assets KayKit (ver conversación: empezar pre-renderizando a sprites 2D).
 - Los archivos `Modern_Interiors_Free_v2.2.zip` y `MetroCity 2.0.rar` en la raíz del repo: pendiente decidir si se eliminan.

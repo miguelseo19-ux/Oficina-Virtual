@@ -11,6 +11,7 @@ export type PlayerState = {
   mic: boolean
   cam: boolean
   screen?: boolean // compartiendo pantalla (va como otra transmisión, con metadata {screen: true})
+  meeting?: boolean // en una reunión de su calendario de Google (status 'busy' + esto = "En reunión")
   status: Status
 }
 
@@ -133,6 +134,7 @@ export class Net {
       this.last.mic !== s.mic ||
       this.last.cam !== s.cam ||
       !!this.last.screen !== !!s.screen ||
+      !!this.last.meeting !== !!s.meeting ||
       this.last.status !== s.status ||
       Math.abs(this.last.x - s.x) > 0.5 ||
       Math.abs(this.last.y - s.y) > 0.5
@@ -142,6 +144,7 @@ export class Net {
       this.last.mic !== s.mic ||
       this.last.cam !== s.cam ||
       !!this.last.screen !== !!s.screen ||
+      !!this.last.meeting !== !!s.meeting ||
       this.last.status !== s.status
     if ((changed && now - this.lastSentAt > 80) || zoneChanged || now - this.lastSentAt > 2000) {
       this.last = {...s}

@@ -10,6 +10,8 @@ import {Call} from './call'
 import {Chat} from './chat'
 import {findPath} from './path'
 import {MiniWindow, miniSupported} from './mini'
+import {boot, LOGIN_URL, logoutGoogle, takeLoginError} from './session'
+import {Calendar, hhmm} from './calendar'
 import {hydrateIcons, icon} from './icons'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -36,6 +38,8 @@ const STATUS_LABEL: Record<Status, string> = {
   away: 'ausente'
 }
 const STATUS_COLOR: Record<Status, string> = {available: '#3bb273', busy: '#fa4616', away: '#f2c94c'}
+/** "En reunión" (por el calendario) es Ocupado para las llamadas, pero se muestra distinto. */
+const statusText = (st: Status, meeting?: boolean) => (st === 'busy' && meeting ? 'en reunión' : STATUS_LABEL[st])
 
 function lsGet(k: string) {
   try {
@@ -62,7 +66,39 @@ function zoneLabel(n: number) {
 
 // ─── Login ──────────────────────────────────────────────────
 
+/** Cómo entra cada uno: con Google (si el Dashboard lo tiene configurado) o con persona + clave. */
+async function bootOffice() {
+  const b = await boot()
+  if (!b) return // yendo a la dirección oficial
+  if (b.kind === 'classic') return setupLogin()
+  if (b.kind === 'login') return showGoogleLogin(takeLoginError())
+  const person = personById(b.person)
+  if (!person) {
+    return showGoogleLogin(`Tu cuenta (${b.email}) está autorizada como “${b.person}”, pero esa persona no está en la oficina.`)
+  }
+  lsSet(LS_KEY, null) // la clave ya no se escribe ni se guarda
+  lsSet(LS_USER, person.id)
+  // el permiso de notificaciones necesita un clic: se pide con el primero dentro de la oficina
+  window.addEventListener(
+    'pointerdown',
+    () => {
+      if ('Notification' in window && Notification.permission === 'default') void Notification.requestPermission().catch(() => {})
+    },
+    {once: true}
+  )
+  start(person, b.key, {google: true, calendar: b.calendar})
+}
+
+function showGoogleLogin(error: string) {
+  $('login-form').hidden = true
+  $('login-google').hidden = false
+  $<HTMLAnchorElement>('btn-google').href = LOGIN_URL
+  $('login-google-error').textContent = error
+}
+
 function setupLogin() {
+  $('login-google').hidden = true
+  $('login-form').hidden = false
   const sel = $<HTMLSelectElement>('login-user')
   for (const p of PEOPLE) {
     const o = document.createElement('option')
@@ -89,13 +125,13 @@ function setupLogin() {
     if ('Notification' in window && Notification.permission === 'default') {
       void Notification.requestPermission().catch(() => {})
     }
-    start(person, key)
+    start(person, key, {google: false, calendar: false})
   }
 }
 
 // ─── Juego ──────────────────────────────────────────────────
 
-function start(me: Person, key: string) {
+function start(me: Person, key: string, auth: {google: boolean; calendar: boolean}) {
   $('login').hidden = true
   $('app').hidden = false
   hydrateIcons()
@@ -127,7 +163,9 @@ function start(me: Person, key: string) {
   let status: Status = manualStatus
   function renderStatusUI() {
     $('me-dot').style.background = STATUS_COLOR[status]
-    $('pill-me').dataset.tip = `${STATUS_LABEL[status][0].toUpperCase()}${STATUS_LABEL[status].slice(1)} · B`
+    const meet = status === 'busy' && inMeeting() ? calendar?.current() : null
+    const label = meet ? `En reunión hasta las ${hhmm(new Date(meet.fin).getTime())}` : STATUS_LABEL[status]
+    $('pill-me').dataset.tip = `${label[0].toUpperCase()}${label.slice(1)} · B`
     for (const b of document.querySelectorAll<HTMLButtonElement>('#status-menu [data-status]')) {
       b.classList.toggle('sel', b.dataset.status === manualStatus)
     }
@@ -147,8 +185,13 @@ function start(me: Person, key: string) {
   }
   document.addEventListener('visibilitychange', () => !document.hidden && markActive())
 
+  // Calendario de Google (se arma más abajo; antes de eso no hay reunión)
+  let calendar: Calendar | null = null
+  /** En una reunión del calendario y sin un estado elegido a mano (Ocupado o Ausente ganan). */
+  const inMeeting = () => manualStatus === 'available' && !!calendar?.current()
   function computeStatus(): Status {
     if (manualStatus !== 'available') return manualStatus
+    if (inMeeting()) return 'busy'
     const inConversation = !!call?.inCall
     if (!inConversation && Date.now() - lastActivity > AWAY_AFTER_MS) return 'away'
     return 'available'
@@ -238,6 +281,7 @@ function start(me: Person, key: string) {
     }
     if (v === 'activity') markActivityRead()
     if (v === 'team') renderRoster()
+    if (v === 'calendar') calendar?.render($('cal-body'))
   }
   function toggleView(v: View) {
     if (view === v) return setView(null)
@@ -430,7 +474,7 @@ function start(me: Person, key: string) {
         const lines = [...net.players.values()].map(p => {
           const n = personById(p.person)?.name ?? '?'
           const where = p.zone ? zoneLabel(p.zone) : (areaAt(p.x, p.y)?.toLowerCase() ?? 'pasillo')
-          return `${n} (${STATUS_LABEL[p.status]}, ${where})`
+          return `${n} (${statusText(p.status, p.meeting)}, ${where})`
         })
         return toast(lines.length ? `Conectados: ${lines.join(' · ')}` : 'No hay nadie más conectado')
       }
@@ -517,9 +561,10 @@ function start(me: Person, key: string) {
   window.addEventListener('blur', () => keys.clear())
 
   $('btn-home').onclick = () => goHome()
-  $('btn-logout').onclick = () => {
+  $('btn-logout').onclick = async () => {
     lsSet(LS_KEY, null)
     net.leave()
+    if (auth.google) await logoutGoogle()
     location.reload()
   }
   $('me-name').textContent = me.name
@@ -910,7 +955,10 @@ function start(me: Person, key: string) {
       call.setZone(z)
       if (z !== null) {
         const busy = [...net.players.values()].filter(p => p.zone === z && p.status === 'busy')
-        for (const b of busy) toast(`${personById(b.person)?.name ?? 'Alguien'} está ocupado (no molestar)`, [], 'moon')
+        for (const b of busy) {
+          const n = personById(b.person)?.name ?? 'Alguien'
+          toast(b.meeting ? `${n} está en una reunión` : `${n} está ocupado (no molestar)`, [], b.meeting ? 'calendar' : 'moon')
+        }
       }
     } else if (talkChanged) {
       call.reconcile()
@@ -979,6 +1027,7 @@ function start(me: Person, key: string) {
       mic: call.micOn,
       cam: call.sendingVideo,
       screen: call.sharingScreen,
+      meeting: status === 'busy' && inMeeting(),
       status
     }
   }
@@ -1535,7 +1584,7 @@ function start(me: Person, key: string) {
             : area
               ? `en la ${area.toLowerCase()}`
               : 'en el pasillo'
-          text = `${STATUS_LABEL[st]} · ${where}`
+          text = `${statusText(st, isMe ? inMeeting() : rp?.meeting)} · ${where}`
         }
         li.innerHTML = `<span class="dot"></span><span class="n"></span><span class="s"></span><span class="acts"></span>`
         const dot = li.querySelector('.dot') as HTMLElement
@@ -1601,6 +1650,7 @@ function start(me: Person, key: string) {
     pos: () => pos,
     zone: () => currentZone,
     status: () => status,
+    meeting: () => status === 'busy' && inMeeting(),
     players: () => net.players.values(),
     talking: () => talking,
     sameArea: (x, y) => areaAt(x, y) === areaAt(pos.x, pos.y),
@@ -1635,6 +1685,17 @@ function start(me: Person, key: string) {
     /* este navegador no tiene esa acción */
   }
   document.addEventListener('visibilitychange', () => !document.hidden && mini.onTabVisible())
+
+  // ── calendario de Google (solo si entraste con Google; ver src/calendar.ts) ──
+  calendar = new Calendar(auth.calendar, auth.google, {
+    changed: () => {
+      refreshStatus()
+      renderStatusUI() // el "hasta las…" del estado
+      if (view === 'calendar') calendar?.render($('cal-body'))
+    },
+    toast,
+    notify
+  })
 
   // ── versión nueva publicada ──
   // La oficina queda abierta todo el día: sin esto, los cambios no le llegan a nadie hasta que
@@ -1719,4 +1780,4 @@ function hexA(hex: string, a: number) {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`
 }
 
-setupLogin()
+void bootOffice()
