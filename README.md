@@ -201,7 +201,9 @@ Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,
 
 ## Cómo usarla
 
-1. Abrir la URL de la oficina (Vercel o GitHub Pages, ver abajo).
+1. Abrir **https://www.myconsulting.cloud/office** (también sirve
+   `myconsulting.cloud/oficina-virtual`, y siguen andando las URLs de Vercel y
+   GitHub Pages, ver abajo).
 2. Elegir tu nombre y escribir la **clave de la oficina** (la misma para todos;
    se acuerda entre ustedes y se comparte por fuera, por ejemplo por WhatsApp).
 3. Aceptar el permiso de cámara/micrófono cuando el navegador lo pida.
@@ -227,6 +229,20 @@ Comandos en el chat: `/ir nombre`, `/saludar nombre`, `/msj nombre texto`,
 
 La carpeta `docs/` es la versión ya compilada que se publica. La carpeta `src/`
 es el código fuente.
+
+## Dominio: myconsulting.cloud/office
+
+El dominio `myconsulting.cloud` es del proyecto **Dashboard** (otro repo, en
+Vercel). Ahí, `next.config.mjs` tiene un *rewrite* que muestra en `/office` la
+oficina publicada en GitHub Pages sin cambiar la dirección (`/oficina-virtual`
+redirige a `/office`), y `middleware.ts` deja pasar `/office` sin la contraseña
+del dashboard (la oficina tiene su propia clave). Como el link puede abrirse sin
+barra final (`/office`), `index.html` arranca con un script que agrega un
+`<base href="/office/">` para que `./assets/…` no apunte a la raíz del dominio:
+no sacarlo.
+
+Para publicar cambios de la oficina no hay que tocar el Dashboard: alcanza con
+el push a `main` de este repo (GitHub Pages se actualiza y `/office` lo muestra).
 
 ## Publicar en Vercel
 

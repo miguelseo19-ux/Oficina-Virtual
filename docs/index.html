@@ -2,6 +2,15 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Si se abre sin barra final (myconsulting.cloud/office), las rutas relativas (./assets/…)
+      // irían a la raíz del dominio (el dashboard): con esto se resuelven dentro de /office/.
+      if (!/\/$|\.html$/.test(location.pathname)) {
+        var base = document.createElement('base')
+        base.href = location.pathname + '/'
+        document.head.appendChild(base)
+      }
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Oficina virtual</title>
     <meta name="theme-color" content="#020003" />

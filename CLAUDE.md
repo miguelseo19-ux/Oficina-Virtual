@@ -8,6 +8,10 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
   carpeta `docs/` (rama `main`, carpeta `/docs`) y en Vercel (`vercel.json`:
   compila en cada push a `main` y sirve `docs/`). `base: './'` en Vite hace que
   ande en los dos (subcarpeta en Pages, raíz en Vercel): no cambiarlo.
+- **Dominio**: el link del equipo es `https://www.myconsulting.cloud/office` (y `/oficina-virtual`).
+  Lo sirve el repo **Dashboard** (Next.js en Vercel): rewrite en su `next.config.mjs` hacia
+  GitHub Pages + excepción en su `middleware.ts`. El script del principio de `index.html` agrega
+  `<base href="…/">` cuando la URL no termina en `/`: sin él, `./assets/…` iría a la raíz del dominio.
 - **Tiempo real P2P** con `trystero` (señalización por relays Nostr públicos, lista
   fija en `src/config.ts` → `RELAY_URLS`). Posiciones, chat, saludos y reacciones
   viajan por data channels; el video por WebRTC directo.
