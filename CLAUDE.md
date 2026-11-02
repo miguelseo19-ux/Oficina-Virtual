@@ -1,6 +1,6 @@
 # Oficina virtual — contexto para Claude Code
 
-Oficina 2D estilo Gather para un equipo chico (5 personas hoy, 12 escritorios).
+Oficina 2D estilo Gather para un equipo chico (6 personas hoy, 12 escritorios).
 Todo el texto de la app y los mensajes al usuario van **en español rioplatense**.
 
 ## Cómo funciona

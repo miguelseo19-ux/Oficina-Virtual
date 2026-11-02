@@ -19,7 +19,8 @@ export const PEOPLE: Person[] = [
   {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#4f7ea6', desk: 2, sprite: 'Nico'},
   {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3, sprite: 'Fran'},
   {id: 'carina', name: 'Carina', role: 'Project Manager', color: '#8a6bb8', desk: 4, sprite: 'Carina'},
-  {id: 'agus', name: 'Agus', role: 'Content Manager', color: '#c9a04f', desk: 5, sprite: 'Agus'}
+  {id: 'agus', name: 'Agus', role: 'Content Manager', color: '#c9a04f', desk: 5, sprite: 'Agus'},
+  {id: 'carlitos', name: 'Carlitos', role: 'AI Consultor', color: '#b8545e', desk: 6, sprite: 'Bob'}
 ]
 
 export const DESK_COUNT = 12
