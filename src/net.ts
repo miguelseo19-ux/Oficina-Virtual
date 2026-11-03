@@ -1,5 +1,6 @@
 import {getRelaySockets, joinRoom, selfId} from 'trystero'
-import {APP_ID, RELAY_URLS, ROOM_ID, TURN_SERVERS} from './config'
+import {APP_ID, RELAY_URLS, ROOM_ID} from './config'
+import {netLog} from './diag'
 
 export type Status = 'available' | 'busy' | 'away'
 
@@ -36,6 +37,8 @@ type Room = ReturnType<typeof joinRoom>
 
 export interface NetEvents {
   onPlayer: (p: RemotePlayer, prevZone: number | null | undefined) => void
+  /** se conectó (o se volvió a conectar) con alguien: hay que volver a mandarle cámara y pantalla */
+  onJoin: (peerId: string) => void
   onLeave: (peerId: string) => void
   onStream: (stream: MediaStream, peerId: string, meta?: unknown) => void
   onError: (msg: string) => void
@@ -52,10 +55,13 @@ export class Net {
   private chatAction: {send: (m: ChatMsg, opts?: {target?: string | string[]}) => Promise<unknown>}
   private reactAction: {send: (m: {from: string; emoji: string}) => Promise<unknown>}
   private waveAction: {send: (m: {from: string}, opts?: {target?: string | string[]}) => Promise<unknown>}
+  private askAction: {send: (m: 1, opts?: {target?: string | string[]}) => Promise<unknown>}
+  private asked = new Map<string, number>()
   private last: PlayerState | null = null
   private lastSentAt = 0
 
-  constructor(password: string, private ev: NetEvents) {
+  /** `turn`: servidores de respaldo (ver turn.ts); vacío = solo conexión directa. */
+  constructor(password: string, turn: RTCIceServer[], private ev: NetEvents) {
     // ?relay=wss://... permite probar con un relay propio sin recompilar
     const override = new URLSearchParams(location.search).getAll('relay')
     const urls = override.length ? override : RELAY_URLS
@@ -64,12 +70,13 @@ export class Net {
         appId: APP_ID,
         password,
         ...(urls.length ? {relayConfig: {urls}} : {}),
-        ...(TURN_SERVERS.length ? {turnConfig: TURN_SERVERS} : {})
+        ...(turn.length ? {turnConfig: turn} : {})
       },
       ROOM_ID,
       {
         onJoinError: d => {
           const e = String(d.error ?? '')
+          netLog(`Error al conectar: ${e.slice(0, 160)}`)
           ev.onError(
             /password|decrypt/i.test(e)
               ? 'Alguien intentó conectarse con otra clave de oficina.'
@@ -101,14 +108,44 @@ export class Net {
     }
     this.reactAction = react
 
-    this.room.onPeerJoin = peerId => {
+    // "mandame tu estado": para quien está conectado pero no aparece en el mapa
+    const ask = this.room.makeAction<1>('ask')
+    ask.onMessage = (_, {peerId}) => {
       if (this.last) void this.sendState(this.last, {target: peerId})
     }
+    this.askAction = ask
+
+    this.room.onPeerJoin = peerId => {
+      netLog(`Conectado con ${short(peerId)}`)
+      if (this.last) void this.sendState(this.last, {target: peerId})
+      void this.askAction.send(1, {target: peerId})
+      ev.onJoin(peerId)
+    }
     this.room.onPeerLeave = peerId => {
+      netLog(`Se fue ${this.who(peerId)}`)
       this.players.delete(peerId)
+      this.asked.delete(peerId)
       ev.onLeave(peerId)
     }
-    this.room.onPeerStream = (stream, peerId, meta) => ev.onStream(stream, peerId, meta)
+    this.room.onPeerStream = (stream, peerId, meta) => {
+      const scr = (meta as {screen?: boolean} | undefined)?.screen === true
+      netLog(`Llegó ${scr ? 'la pantalla' : 'la cámara'} de ${this.who(peerId)} (${stream.getTracks().map(t => t.kind).join('+')})`)
+      ev.onStream(stream, peerId, meta)
+    }
+  }
+
+  /** Nombre para el diagnóstico (id corto si todavía no mandó su estado). */
+  who(peerId: string) {
+    return this.players.get(peerId)?.person ?? short(peerId)
+  }
+
+  /** Conexiones abiertas con cada uno (peerId → conexión), para el diagnóstico. */
+  connections(): Record<string, RTCPeerConnection> {
+    try {
+      return this.room.getPeers() as Record<string, RTCPeerConnection>
+    } catch {
+      return {}
+    }
   }
 
   private receive(s: PlayerState, peerId: string) {
@@ -153,14 +190,29 @@ export class Net {
     }
   }
 
-  /** Borra jugadores sin señales por 90s (respaldo si la conexión no avisó al cerrarse). */
+  /**
+   * Borra jugadores sin señales por 90s (respaldo si la conexión no avisó al cerrarse). Antes de eso,
+   * a quien está conectado pero no mandó su estado (no aparece en el mapa) o lleva >10s callado
+   * (el latido es cada 2s) se le pide que lo mande, como mucho cada 5s.
+   */
   prune(now: number) {
     for (const [id, p] of this.players) {
       if (now - p.lastSeen > 90_000) {
+        netLog(`${p.person} sin señales hace 90 s: lo saco del mapa`)
         this.players.delete(id)
         this.ev.onLeave(id)
-      }
+      } else if (now - p.lastSeen > 10_000) this.ask(id, now, `${p.person} callado hace ${Math.round((now - p.lastSeen) / 1000)} s`)
     }
+    for (const id of Object.keys(this.connections())) {
+      if (!this.players.has(id)) this.ask(id, now, `${short(id)} conectado pero sin estado`)
+    }
+  }
+
+  private ask(id: string, now: number, why: string) {
+    if (now - (this.asked.get(id) ?? -Infinity) < 5000) return
+    this.asked.set(id, now)
+    netLog(`Pido estado: ${why}`)
+    void this.askAction.send(1, {target: id}).catch(() => {})
   }
 
   /** Todas las conexiones (pestañas) de una persona. */
@@ -192,3 +244,5 @@ export class Net {
     void this.room.leave()
   }
 }
+
+const short = (peerId: string) => peerId.slice(0, 6)

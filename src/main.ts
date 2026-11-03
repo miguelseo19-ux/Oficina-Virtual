@@ -4,7 +4,7 @@ import {AREAS, ART, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOL
 import {buildScene} from './scene'
 import {drawSimpleMap} from './scene/simple'
 import type {Light} from './scene/sprites'
-import {BODY_H, DIR_INDEX, FRAME, frameOf, loadAssets, type Assets, type Dir} from './assets'
+import {BODY_H, DIR_INDEX, FRAME, frameOf, loadAssets, SPRITE_COUNT, type Assets, type Dir} from './assets'
 import {Net, type RemotePlayer, type Status} from './net'
 import {Call} from './call'
 import {Chat} from './chat'
@@ -12,6 +12,8 @@ import {findPath} from './path'
 import {MiniWindow, miniSupported} from './mini'
 import {boot, LOGIN_URL, logoutGoogle, takeLoginError} from './session'
 import {Calendar, hhmm} from './calendar'
+import {linkInfo, netEvents, netLog} from './diag'
+import {loadTurn, type TurnInfo} from './turn'
 import {hydrateIcons, icon} from './icons'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -86,7 +88,7 @@ async function bootOffice() {
     },
     {once: true}
   )
-  start(person, b.key, {google: true, calendar: b.calendar})
+  start(person, b.key, {google: true, calendar: b.calendar}, await loadTurn(b.key))
 }
 
 function showGoogleLogin(error: string) {
@@ -111,7 +113,7 @@ function setupLogin() {
   if (savedUser && personById(savedUser)) sel.value = savedUser
   if (savedKey) $<HTMLInputElement>('login-key').value = savedKey
 
-  $<HTMLFormElement>('login-form').onsubmit = e => {
+  $<HTMLFormElement>('login-form').onsubmit = async e => {
     e.preventDefault()
     const person = personById(sel.value)
     const key = $<HTMLInputElement>('login-key').value.trim()
@@ -125,13 +127,15 @@ function setupLogin() {
     if ('Notification' in window && Notification.permission === 'default') {
       void Notification.requestPermission().catch(() => {})
     }
-    start(person, key, {google: false, calendar: false})
+    const btn = $<HTMLButtonElement>('login-form').querySelector<HTMLButtonElement>('button[type=submit]')
+    if (btn) btn.disabled = true
+    start(person, key, {google: false, calendar: false}, await loadTurn(key))
   }
 }
 
 // ─── Juego ──────────────────────────────────────────────────
 
-function start(me: Person, key: string, auth: {google: boolean; calendar: boolean}) {
+function start(me: Person, key: string, auth: {google: boolean; calendar: boolean}, turn: TurnInfo) {
   $('login').hidden = true
   $('app').hidden = false
   hydrateIcons()
@@ -205,7 +209,9 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     renderRoster()
   }
 
-  const net = new Net(key, {
+  netLog(`Entra ${me.id} · versión ${document.querySelector<HTMLScriptElement>('script[type="module"][src*="assets/index-"]')?.src.split('/').pop() ?? 'dev'} · respaldo: ${turn.source}${turn.note ? ` (${turn.note})` : ''}`)
+  const net = new Net(key, turn.servers, {
+    onJoin: id => call.onPeerJoined(id),
     onPlayer: (p, prevZone) => {
       if (p.zone === me.desk && prevZone !== me.desk && currentZone !== me.desk) knock(p)
       trackPresence()
@@ -280,6 +286,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       b.classList.toggle('active', (b.dataset.view === 'office' && v === null) || b.dataset.view === v)
     }
     if (v === 'activity') markActivityRead()
+    if (v === 'settings') void renderLinks()
     if (v === 'team') renderRoster()
     if (v === 'calendar') calendar?.render($('cal-body'))
   }
@@ -996,7 +1003,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     requestAnimationFrame(step)
   }
 
-  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking}
+  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking, net, call}
 
   /**
    * ¿Con quién estoy lo bastante cerca para charlar? Solo fuera de cubículos y salas, en el mismo
@@ -1163,11 +1170,21 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
   // Decorado pixel art (estático, se arma una vez) — ver src/scene
   let assets: Assets | null = null
   let scene = buildScene(null, light)
-  void loadAssets().then(a => {
-    if (!a) return
-    assets = a
-    scene = buildScene(a, light)
-  })
+  // Si al abrir falla alguna imagen (un corte de red), se reintenta sola en vez de quedar con círculos
+  // toda la sesión: a los 5 s, 15 s, 30 s, 1 min y después cada 2 min, hasta tener todo.
+  void (async () => {
+    for (let i = 0; ; i++) {
+      const a = await loadAssets()
+      const have = (x: Assets | null) => (x ? 1 + Object.keys(x.characters).length : 0)
+      if (a && have(a) > have(assets)) {
+        assets = a
+        scene = buildScene(a, light)
+      }
+      if (assets && Object.keys(assets.characters).length >= SPRITE_COUNT) return
+      netLog(`Imágenes incompletas (${assets ? Object.keys(assets.characters).length : 0}/${SPRITE_COUNT} personajes${assets ? '' : ', sin muebles'}): reintento`)
+      await new Promise(r => setTimeout(r, ([5, 15, 30, 60][i] ?? 120) * 1000))
+    }
+  })()
   applyLight() // marca en el menú la luz elegida
 
   function drawScene() {
@@ -1562,6 +1579,102 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     $('net-status').dataset.ok = open === 0 ? '0' : '1'
     const online = new Set([...net.players.values()].map(p => p.person))
     $('team-count').textContent = String(online.size + 1)
+  }
+
+  // ── diagnóstico de conexión (Ajustes → Conexión) ──
+  const TURN_NOTE: Record<string, string> = {
+    no_configurado: 'todavía no está configurado',
+    'sin Dashboard': 'no se usa en pruebas locales',
+    no_autorizado: 'el servidor no reconoció la clave de la oficina',
+    'tardó demasiado': 'no respondió a tiempo',
+    'error de red': 'no se pudo consultar'
+  }
+  const turnText = () =>
+    turn.source === 'ninguno'
+      ? `Servidor de respaldo: ${TURN_NOTE[turn.note] || turn.note || 'no configurado'}. Las conexiones van solo directo.`
+      : 'Servidor de respaldo: activo (se usa solo si la conexión directa falla).'
+  /** Conexión con cada uno: directa o por el respaldo, demora, y si llegó su estado (si aparece en el mapa). */
+  async function collectLinks() {
+    const conns = net.connections()
+    const ids = new Set([...Object.keys(conns), ...net.players.keys()])
+    const out: {id: string; name: string; inMap: boolean; text: string; kind: string; raw: string}[] = []
+    for (const id of ids) {
+      const p = net.players.get(id)
+      const name = (p && personById(p.person)?.name) ?? (p?.person || `Alguien (${id.slice(0, 6)})`)
+      const pc = conns[id]
+      if (!pc) {
+        out.push({id, name, inMap: !!p, text: 'sin conexión abierta', kind: 'mal', raw: 'sin conexión'})
+        continue
+      }
+      const l = await linkInfo(pc)
+      const how = l.path === 'directo' ? 'Directo' : l.path === 'respaldo' ? 'Por el servidor de respaldo' : l.state === 'failed' ? 'Falló la conexión' : 'Conectando…'
+      const extra = [l.rtt !== null ? `${l.rtt} ms` : '', p ? '' : 'no aparece en el mapa'].filter(Boolean).join(' · ')
+      out.push({
+        id,
+        name,
+        inMap: !!p,
+        text: extra ? `${how} · ${extra}` : how,
+        kind: !p || l.state === 'failed' ? 'mal' : (l.path ?? ''),
+        raw: `${l.state} · ${l.path ?? 'sin camino'} (${l.kinds || '-'}) · ${l.rtt ?? '-'} ms`
+      })
+    }
+    return out
+  }
+  let linksBusy = false
+  async function renderLinks() {
+    if ($('settings').hidden || linksBusy) return
+    linksBusy = true
+    try {
+      $('net-turn').textContent = turnText()
+      const links = await collectLinks()
+      $('net-links').replaceChildren(
+        ...links.map(l => {
+          const li = document.createElement('li')
+          li.dataset.k = l.kind
+          const b = document.createElement('b')
+          b.textContent = l.name
+          const sp = document.createElement('span')
+          sp.textContent = l.text
+          li.append(b, sp)
+          return li
+        })
+      )
+    } finally {
+      linksBusy = false
+    }
+  }
+  setInterval(() => void renderLinks(), 2000)
+  $('btn-diag').onclick = async () => {
+    const {open, total} = net.relayStatus()
+    const links = await collectLinks()
+    const lines = [
+      'Oficina virtual — diagnóstico',
+      `Fecha: ${new Date().toLocaleString('es-AR')}`,
+      `Persona: ${me.id} · zona ${currentZone ?? 'pasillo'} · estado ${status}`,
+      `Navegador: ${navigator.userAgent}`,
+      `Servidores de señalización: ${open}/${total}`,
+      `Respaldo (TURN): ${turn.source}${turn.note ? ` (${turn.note})` : ''}`,
+      `En llamada: ${$('call').hidden ? 'no' : `sí (${$('call').dataset.layout})`} · imágenes: ${assets ? Object.keys(assets.characters).length : 0}/${SPRITE_COUNT}`,
+      '',
+      'Conexiones:',
+      ...(links.length ? links.map(l => `- ${l.name} [${l.id.slice(0, 6)}]: ${l.raw} · en el mapa: ${l.inMap ? 'sí' : 'NO'}`) : ['- (nadie)']),
+      '',
+      'Eventos:',
+      ...netEvents()
+    ]
+    const text = lines.join('\n')
+    try {
+      await navigator.clipboard.writeText(text)
+      toast('Diagnóstico copiado: pegalo en el chat con quien mantiene la oficina.', [], 'check')
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text
+      document.body.append(ta)
+      ta.select()
+      const ok = document.execCommand('copy')
+      ta.remove()
+      toast(ok ? 'Diagnóstico copiado.' : 'No se pudo copiar el diagnóstico.', [], ok ? 'check' : 'info')
+    }
   }
 
   // ── lista de presentes ──

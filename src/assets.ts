@@ -61,7 +61,7 @@ export interface Assets {
   characters: Record<string, HTMLImageElement>
 }
 
-function load(src: string): Promise<HTMLImageElement> {
+function loadOnce(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => resolve(img)
@@ -70,14 +70,32 @@ function load(src: string): Promise<HTMLImageElement> {
   })
 }
 
-/** Carga todo; si algo falla, la app sigue con el dibujo generado por código. */
+/** Carga una imagen; si falla (un corte de red al abrir), reintenta dos veces sin usar lo que quedó en caché. */
+async function load(src: string): Promise<HTMLImageElement> {
+  for (let i = 0; ; i++) {
+    try {
+      return await loadOnce(i === 0 ? src : `${src}?r=${Date.now()}`)
+    } catch (e) {
+      if (i >= 2) throw e
+      await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    }
+  }
+}
+
+/** Cuántos personajes hay en total (para saber si una carga quedó incompleta). */
+export const SPRITE_COUNT = CHARACTER_SPRITES.length + Object.keys(CUSTOM_SPRITES).length
+
+/**
+ * Carga los muebles y los personajes. Sin el atlas de muebles devuelve null (la app sigue con el
+ * dibujo generado por código); un personaje que no carga no tira abajo el resto: esa persona usa el
+ * círculo. main.ts vuelve a llamar mientras falte algo.
+ */
 export async function loadAssets(): Promise<Assets | null> {
   try {
     const custom = Object.keys(CUSTOM_SPRITES)
     const [props, ...chars] = await Promise.all([
       load(BASE + 'props.png'),
-      ...CHARACTER_SPRITES.map(n => load(`${BASE}characters/${n}.png`)),
-      // un personaje propio que no carga no tira abajo el resto: esa persona usa el círculo
+      ...CHARACTER_SPRITES.map(n => load(`${BASE}characters/${n}.png`).catch(() => null)),
       ...custom.map(n => load(`${import.meta.env.BASE_URL}assets/personajes/${n}.png`).catch(() => null))
     ])
     const characters: Record<string, HTMLImageElement> = {}

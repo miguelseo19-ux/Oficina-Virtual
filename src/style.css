@@ -158,6 +158,15 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
 #net-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--subtle); flex: none; transform: translateY(-1px); }
 #net-status[data-ok='1']::before { background: var(--ok); box-shadow: 0 0 8px var(--ok); }
 #net-status[data-ok='0']::before { background: var(--accent-warm); box-shadow: 0 0 8px var(--accent-warm); }
+#net-links { list-style: none; margin: 4px 0 10px; padding: 0; display: grid; gap: 6px; }
+#net-links:empty { display: none; }
+#net-links li { display: flex; align-items: baseline; gap: 8px; font-size: 13px; }
+#net-links li::before { content: ''; width: 7px; height: 7px; border-radius: 50%; flex: none; background: var(--subtle); transform: translateY(-1px); }
+#net-links li[data-k='directo']::before { background: var(--ok); }
+#net-links li[data-k='respaldo']::before { background: #f2c94c; }
+#net-links li[data-k='mal']::before { background: var(--accent-warm); }
+#net-links b { font-weight: 600; }
+#net-links span { color: var(--muted); }
 .avatar {
   width: 32px; height: 32px; border-radius: 50%;
   display: grid; place-items: center; font-size: 12px; font-weight: 700; color: #fff;

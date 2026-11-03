@@ -45,7 +45,9 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 | `src/main.ts` | Login, bucle de juego, cámara (`zoomRel` relativo a la vista de cerca, `follow`, arrastre, rueda/pellizco, vista general), modos de vista (Simplificado/Inmersivo/Automático, `ov.vista` en localStorage), luz (Día/Noche/Según la hora de `DAY_HOURS`, `ov.luz`, tecla L), capa dinámica del mapa, avatares, paneles, comandos `/ir`, atajos |
 | `src/mini.ts` | Mini ventana flotante (Document Picture-in-Picture, solo Chrome/Edge): mini mapa con `drawSimpleMap`, avisos de cercanía/visitas, videos de la llamada (`Call.peers()`), mic/cámara/no molestar. Botón `#btn-mini` o tecla P; Chrome la abre sola al cambiar de pestaña en llamada (Media Session `enterpictureinpicture`) |
 | `src/path.ts` | Búsqueda de camino (A*) sobre la grilla de colisiones de `map.ts`, con suavizado. La usan el clic en el mapa y "ir a mi escritorio" (`walkTo` en `main.ts`) |
-| `src/net.ts` | Capa Trystero (state, chat, wave, react) |
+| `src/net.ts` | Capa Trystero (state, chat, wave, react, ask). `ask` = "mandame tu estado": `prune()` lo usa con quien está conectado sin estado o lleva >10 s callado; `onJoin` avisa a `Call.onPeerJoined` para reenviar cámara/pantalla si la conexión se rearmó |
+| `src/turn.ts` | Pide al Dashboard (`/api/office/turn`, header `x-office-proof` = sha256("oficina-virtual:turn:"+clave)) credenciales TURN de Cloudflare antes de entrar a la sala; sin Dashboard o sin configurar, sigue sin respaldo |
+| `src/diag.ts` | Registro de eventos de conexión (`netLog`) y `linkInfo` (directo/respaldo, demora) para Ajustes → Conexión y "Copiar diagnóstico" |
 | `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla. Vistas de la llamada (`data-layout` en `#call`: `side` al costado, `grid` en grande sobre la oficina con `fitGrid()`, `present` pantalla compartida en grande + caras al costado; `ov.llamada.vista`). La pantalla va como otra transmisión con metadata `{screen: true}` y el estado `screen` en `PlayerState`. Menú `#share-menu` (main.ts lo abre): `startScreen(surface)` con `displaySurface` como preselección y sonido opcional (`ov.compartir.sonido`; solo Chromium: pestaña siempre, pantalla en Windows/ChromeOS); la pista de audio viaja en la misma transmisión y quien la recibe la puede silenciar (`.tile-snd`). Avisos desde call.ts con el evento `ov:toast` |
 | `src/session.ts` | Ingreso: decide al abrir entre sesión de Google, botón "Entrar con Google" o login de clave; logout |
 | `src/calendar.ts` | Calendario de Google: reuniones de hoy/mañana, "En reunión" automático, avisos, panel lateral |
@@ -74,6 +76,6 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 - Personajes sentados al llegar a su escritorio (el pack trae animaciones `sit`).
 - Ingreso con Google + calendario: código listo; falta configurar Google Cloud y las variables en
   Vercel (Dashboard). Probar el ingreso real una vez configurado.
-- Si alguna red bloquea P2P: agregar TURN en `TURN_SERVERS`.
+- Servidor de respaldo (TURN de Cloudflare): código listo (`src/turn.ts` + `/api/office/turn` en el Dashboard); falta cargar `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN` y `OFFICE_KEY` en Vercel (Dashboard). Verificar en Ajustes → Conexión que diga "activo".
 - Posible futuro: estilo 3D/isométrico con assets KayKit (ver conversación: empezar pre-renderizando a sprites 2D).
 - Los archivos `Modern_Interiors_Free_v2.2.zip` y `MetroCity 2.0.rar` en la raíz del repo: pendiente decidir si se eliminan.

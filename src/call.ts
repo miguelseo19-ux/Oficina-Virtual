@@ -1,4 +1,5 @@
 import {initials, personById} from './config'
+import {netLog} from './diag'
 import {icon} from './icons'
 import type {Net, RemotePlayer, Status} from './net'
 
@@ -65,6 +66,7 @@ export class Call {
   private screenKind: Surface = 'monitor'
   private screenSentTo = new Set<string>()
   private remoteScreens = new Map<string, MediaStream>()
+  private pcs = new Map<string, RTCPeerConnection>() // conexión con cada uno (para notar si se rearmó)
   private screenMuted = new Set<string>() // pantallas de otros que silenciaste (id de la transmisión)
   private shareAudio = pref(LS_SHARE_AUDIO) !== '0'
   private camTrack: MediaStreamTrack | null = null
@@ -473,7 +475,29 @@ export class Call {
     this.reconcile()
   }
 
+  /**
+   * Conexión nueva con alguien (la primera, o una que se rearmó sola después de un corte). Si se
+   * rearmó, lo que le mandábamos iba por la conexión vieja: se olvida para volver a mandarle cámara
+   * y pantalla, y se descarta lo que llegaba de él si ya terminó (llega de nuevo por la nueva).
+   */
+  onPeerJoined(peerId: string) {
+    const pc = this.net.connections()[peerId]
+    const prev = this.pcs.get(peerId)
+    if (pc) this.pcs.set(peerId, pc)
+    if (pc && prev === pc) return // la misma conexión de antes: no hay nada que reenviar
+    const again = this.sentTo.has(peerId) || this.screenSentTo.has(peerId)
+    this.sentTo.delete(peerId)
+    this.screenSentTo.delete(peerId)
+    for (const m of [this.remote, this.remoteScreens]) {
+      const s = m.get(peerId)
+      if (s && !s.getTracks().some(t => t.readyState === 'live')) m.delete(peerId)
+    }
+    if (again) netLog(`Conexión rearmada con ${this.net.who(peerId)}: le vuelvo a mandar cámara${this.screen ? ' y pantalla' : ''}`)
+    this.reconcile()
+  }
+
   onPeerGone(peerId: string) {
+    this.pcs.delete(peerId)
     this.remote.delete(peerId)
     this.remoteScreens.delete(peerId)
     this.sentTo.delete(peerId)
@@ -634,6 +658,7 @@ export class Call {
     // con sonido suele ser un video: priorizar que se mueva fluido; sin sonido, que el texto se lea nítido
     track.contentHint = audio ? 'motion' : 'detail'
     this.screen = s
+    netLog(`Comparto ${SURFACE_TEXT[this.screenKind]} (${audio ? 'con' : 'sin'} sonido) con ${this.screenSentTo.size + this.wanted().size} personas`)
     track.onended = () => this.stopScreen(true) // "Dejar de compartir" del navegador
     this.btnScreen.classList.add('on')
     this.updateSharingBar()
@@ -683,6 +708,7 @@ export class Call {
   private stopScreen(update: boolean) {
     const s = this.screen
     if (!s) return
+    netLog('Dejo de compartir')
     this.screen = null
     this.btnScreen.classList.remove('on')
     for (const id of this.screenSentTo) {

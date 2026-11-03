@@ -322,9 +322,23 @@ npm run dev
 ## Problemas de conexión
 
 - **No veo a nadie**: verificar que todos usen exactamente la misma clave.
-- **Veo a la persona en el mapa pero no hay video/audio**: algunas redes
-  corporativas bloquean conexiones directas. Se soluciona agregando un servidor
-  TURN (por ejemplo, el plan gratuito de Cloudflare TURN) en `TURN_SERVERS` de
-  `src/config.ts`.
+- **Alguien no aparece, o se ve a la persona pero no hay video/audio**: algunas
+  redes (wifi, routers, redes de empresa) bloquean la conexión directa. Para eso
+  está el **servidor de respaldo** (TURN de Cloudflare): el Dashboard entrega
+  credenciales que vencen solas en `/api/office/turn` a quien conoce la clave de
+  la oficina (`src/turn.ts`). Se activa cargando en Vercel (proyecto Dashboard)
+  `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN` (Cloudflare → Realtime → TURN → Create
+  TURN key) y `OFFICE_KEY`. Las conexiones directas se siguen prefiriendo.
+  Gratis hasta 1.000 GB/mes. También se pueden fijar servidores en
+  `TURN_SERVERS` de `src/config.ts`.
+- **Diagnóstico**: Ajustes → Conexión muestra con quién estás conectado y cómo
+  (directo o por el respaldo, demora, si aparece en el mapa) y si el respaldo
+  está activo. "Copiar diagnóstico" copia eso más los últimos eventos de
+  conexión (sin direcciones IP) para pasárselo a quien mantiene la oficina.
+- **Arreglos automáticos**: si alguien está conectado pero no aparece en el
+  mapa (o deja de mandar su posición), se le pide que la mande; si la conexión
+  con alguien se rearma sola, se le vuelven a mandar cámara y pantalla; si al
+  abrir falla la descarga de alguna imagen de personajes o muebles, se reintenta
+  sola.
 - **Los relays públicos fallan**: se pueden fijar relays específicos en
   `RELAY_URLS` de `src/config.ts`.
