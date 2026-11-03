@@ -32,6 +32,8 @@ const NEAR_RADIUS = 200
 const TALK_IN = 120
 const TALK_OUT = 170
 const DEBUG = new URLSearchParams(location.search).has('debug') // ?debug=1 muestra colisiones y zonas
+/** Detalle técnico de la conexión en Ajustes (?conexion, o ?debug): es para quien mantiene la oficina, no para el equipo. */
+const NET_DETAIL = DEBUG || new URLSearchParams(location.search).has('conexion')
 // Cuánto de la oficina se ve como máximo, en píxeles de arte (el mapa mide 652×320; un cubículo
 // mide ~78 de ancho y cada fila ~106 de alto). Más chico = cámara más cerca.
 const VIEW_ART = {w: 170, h: 220}
@@ -1687,8 +1689,10 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     $('net-dot').style.background = open === 0 ? 'var(--danger)' : 'var(--ok)'
     $('net-status').textContent =
       open === 0
-        ? `Sin conexión a la red (0/${total}). Revisá internet o desactivá bloqueadores de anuncios.`
-        : `Conectado a ${open} de ${total} servidores · ves a ${peers} ${peers === 1 ? 'persona' : 'personas'}.`
+        ? 'Sin conexión. Revisá internet o desactivá los bloqueadores de anuncios.'
+        : NET_DETAIL
+          ? `Conectado a ${open} de ${total} servidores · ves a ${peers} ${peers === 1 ? 'persona' : 'personas'}.`
+          : 'Conectado.'
     $('net-status').dataset.ok = open === 0 ? '0' : '1'
     const online = new Set([...net.players.values()].map(p => p.person))
     $('team-count').textContent = String(online.size + 1)
@@ -1733,9 +1737,12 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     }
     return out
   }
+  // El detalle (respaldo, servidor de video, conexión con cada uno) es interno: solo con ?conexion o ?debug.
+  // Todo eso igual va en "Copiar diagnóstico".
+  $('net-tech').hidden = !NET_DETAIL
   let linksBusy = false
   async function renderLinks() {
-    if ($('settings').hidden || linksBusy) return
+    if (!NET_DETAIL || $('settings').hidden || linksBusy) return
     linksBusy = true
     try {
       $('net-turn').textContent = turnText()
