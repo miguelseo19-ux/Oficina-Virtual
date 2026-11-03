@@ -585,3 +585,31 @@ body.call-big #map-ctrl { display: none; }
   font: 600 13px var(--sans); color: #6e3f20; background: #fff;
 }
 .tile.board.compact .board-expand:hover { background: #faf6f3; }
+
+/* ── Anotar sobre una pantalla compartida (src/ink.ts) ─────── */
+.tile canvas.ink { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+.tile.inking canvas.ink { pointer-events: auto; cursor: crosshair; touch-action: none; }
+.tile.screen .label { z-index: 2; }
+.tile.screen .tile-snd { z-index: 3; }
+.tile-ink {
+  position: absolute; top: 8px; right: 8px; z-index: 3; display: inline-flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 11px; border-radius: 999px; font: 600 12px var(--sans); color: var(--fg);
+  background: var(--glass); backdrop-filter: blur(14px); border: 1px solid var(--hairline);
+  opacity: 0; transition: opacity 150ms;
+}
+.tile.screen:hover .tile-ink, .tile-ink.on { opacity: 1; }
+@media (hover: none) { .tile-ink { opacity: 1; } }
+.tile-ink:hover { background: var(--magenta); color: #fff; border-color: transparent; }
+.tile-ink.on { background: var(--magenta); color: #fff; border-color: transparent; }
+.ink-bar {
+  position: absolute; top: 8px; left: 50%; transform: translateX(-50%); z-index: 3;
+  display: flex; align-items: center; gap: 3px; padding: 5px 7px; border-radius: 999px; max-width: calc(100% - 130px);
+  background: #fff; color: #020003; box-shadow: 0 12px 30px -10px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.ink-color { width: 22px; height: 22px; margin: 0 2px; border-radius: 50%; flex: none; background: var(--c); box-shadow: inset 0 0 0 1px rgba(2, 0, 3, 0.18); }
+.ink-color.sel { box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--magenta); }
+.ink-tool, .ink-act { width: 32px; height: 32px; border-radius: 999px; flex: none; display: grid; place-items: center; color: rgba(2, 0, 3, 0.65); }
+.ink-tool:hover, .ink-act:hover { background: rgba(2, 0, 3, 0.06); color: #020003; }
+.ink-tool.sel { background: var(--magenta); color: #fff; }
+.ink-act[hidden] { display: none; }
+.ink-sep { width: 1px; height: 20px; flex: none; background: rgba(2, 0, 3, 0.1); margin: 0 4px; }

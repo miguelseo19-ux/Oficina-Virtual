@@ -28,6 +28,13 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
   puede achicar con los botones de vista (queda como un cuadro más) y volver a
   agrandar con el botón de pantalla. Quien comparte sigue mostrando su cámara y
   ve un aviso con "Dejar de compartir".
+- **Anotar sobre una pantalla compartida** (como en Zoom): en el cuadro de la
+  pantalla, "Anotar" y se dibuja encima; lo ven todos los de la llamada en vivo,
+  con el color y el nombre de cada uno. Lápiz (queda) o puntero láser (se borra
+  solo), deshacer, borrar lo mío; "borrar todo" solo quien comparte. Quien
+  comparte ve su propia pantalla en la llamada ("Tu pantalla", achicada) con las
+  anotaciones, y un aviso cuando alguien empieza a anotar. Al dejar de compartir
+  se borran (no se guardan). `Esc` sale de anotar.
 - **Pizarras**: Compartir → *Una pizarra* (nueva o una guardada). Se abre en
   grande para todos los de la llamada y todos dibujan a la vez, viendo el cursor
   y el nombre de cada uno (Excalidraw, gratis y de código abierto; se carga

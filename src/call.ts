@@ -1,6 +1,7 @@
 import {initials, personById} from './config'
 import {netLog} from './diag'
 import {icon} from './icons'
+import {Ink} from './ink'
 import type {Net, RemotePlayer, Status} from './net'
 
 const LS_CAM = 'ov.dev.cam'
@@ -67,6 +68,8 @@ export class Call {
   private screenSentTo = new Set<string>()
   private remoteScreens = new Map<string, MediaStream>()
   private boardSource: (() => {key: string; el: HTMLElement} | null) | null = null
+  private ink: Ink // anotaciones sobre pantallas compartidas (ink.ts)
+  private inkNotified = new Set<string>()
   private pcs = new Map<string, RTCPeerConnection>() // conexión con cada uno (para notar si se rearmó)
   private screenMuted = new Set<string>() // pantallas de otros que silenciaste (id de la transmisión)
   private shareAudio = pref(LS_SHARE_AUDIO) !== '0'
@@ -111,6 +114,12 @@ export class Call {
     private nearby: () => Iterable<string>
   ) {
     setInterval(() => this.updateSpeaking(), 100)
+    this.ink = new Ink(net, me, () => this.members, {
+      onInkOnMine: id => this.inkOnMine(id),
+      wantBig: () => {
+        if (this.layout !== 'present') this.setView('present')
+      }
+    })
     this.btnMic.onclick = () => this.toggleMic()
     this.btnCam.onclick = () => this.toggleCam()
     for (const b of document.querySelectorAll<HTMLButtonElement>('#call-views [data-view]')) {
@@ -289,6 +298,10 @@ export class Call {
 
   /** Esc en la vista grande: volver al costado. Devuelve si hizo algo. */
   exitBig(): boolean {
+    if (this.ink.annotating) {
+      this.ink.stop()
+      return true
+    }
     if (this.panel.hidden || this.layout === 'side') return false
     this.setView('side')
     return true
@@ -298,6 +311,7 @@ export class Call {
   setView(v: Layout) {
     if (v === 'present') this.dismissed.clear()
     else {
+      this.ink.stop()
       this.view = v
       savePref(LS_VIEW, v)
       for (const id of this.shownScreens) this.dismissed.add(id)
@@ -671,6 +685,7 @@ export class Call {
     // con sonido suele ser un video: priorizar que se mueva fluido; sin sonido, que el texto se lea nítido
     track.contentHint = audio ? 'motion' : 'detail'
     this.screen = s
+    this.dismissed.add(s.id) // "Tu pantalla" arranca achicada: para vos no hace falta en grande
     netLog(`Comparto ${SURFACE_TEXT[this.screenKind]} (${audio ? 'con' : 'sin'} sonido) con ${this.screenSentTo.size + this.wanted().size} personas`)
     track.onended = () => this.stopScreen(true) // "Dejar de compartir" del navegador
     this.btnScreen.classList.add('on')
@@ -695,6 +710,16 @@ export class Call {
       )
     }
     this.reconcile() // se la manda a todos los de la llamada
+  }
+
+  /** Alguien empezó a anotar sobre mi pantalla: si no la estoy mirando, aviso (una vez por persona). */
+  private inkOnMine(peerId: string) {
+    const sid = this.screen?.id
+    if (!sid || this.inkNotified.has(`${sid}:${peerId}`)) return
+    this.inkNotified.add(`${sid}:${peerId}`)
+    if (this.layout === 'present' && !this.dismissed.has(sid)) return
+    const name = personById(this.net.players.get(peerId)?.person ?? '')?.name.split(' ')[0] ?? 'Alguien'
+    say(`${name} está anotando sobre tu pantalla.`, [{label: 'Ver', fn: () => this.setView('present')}])
   }
 
   /** Pausa o vuelve a mandar el sonido de lo que compartís (sin dejar de compartir la imagen). */
@@ -764,7 +789,7 @@ export class Call {
     const others = [...inZone]
       .map(id => this.net.players.get(id))
       .filter((p): p is RemotePlayer => !!p)
-    const screens: {key: string; name: string; stream: MediaStream}[] = []
+    const screens: {key: string; name: string; stream: MediaStream; owner: string; self?: boolean}[] = []
     for (const p of others) {
       const person = personById(p.person)
       wanted.push({
@@ -778,9 +803,11 @@ export class Call {
       })
       const scr = this.remoteScreens.get(p.peerId)
       if (p.screen && scr?.getVideoTracks().some(t => t.readyState === 'live')) {
-        screens.push({key: `scr:${p.peerId}`, name: `Pantalla de ${(person?.name ?? 'Invitado').split(' ')[0]}`, stream: scr})
+        screens.push({key: `scr:${p.peerId}`, name: `Pantalla de ${(person?.name ?? 'Invitado').split(' ')[0]}`, stream: scr, owner: p.peerId})
       }
     }
+    // mi pantalla, para ver lo que anotan los demás (no se agranda sola: arranca achicada)
+    if (this.screen) screens.push({key: 'scr:self', name: 'Tu pantalla', stream: this.screen, owner: this.net.selfId, self: true})
 
     // pizarra abierta en esta llamada (board.ts): va en grande como una pantalla compartida
     const board = this.boardSource?.() ?? null
@@ -845,11 +872,12 @@ export class Call {
       const video = t.querySelector('video')!
       // si comparte con sonido, se escucha (por el parlante elegido); cada uno lo puede silenciar
       const id = s.stream.id
-      const hasSound = s.stream.getAudioTracks().some(tr => tr.readyState === 'live')
+      const hasSound = !s.self && s.stream.getAudioTracks().some(tr => tr.readyState === 'live')
       const muted = this.screenMuted.has(id)
       video.muted = !hasSound || muted
       setStream(video, s.stream)
       this.applySink(video)
+      this.ink.attach(t, id, video, s.owner)
       let snd = t.querySelector<HTMLButtonElement>('.tile-snd')
       if (hasSound && !snd) {
         snd = document.createElement('button')
@@ -872,6 +900,7 @@ export class Call {
       }
     }
     for (const id of [...this.screenMuted]) if (!this.shownScreens.includes(id)) this.screenMuted.delete(id)
+    this.ink.prune(new Set(screens.map(s => s.stream.id)))
     if (board) {
       for (const [k, el] of existing) if (el === board.el) existing.delete(k)
       board.el.dataset.key = board.key
@@ -880,6 +909,7 @@ export class Call {
       screenTiles.unshift(board.el)
     }
     for (const el of existing.values()) {
+      this.ink.detach(el)
       const v = el.querySelector('video')
       if (v) v.srcObject = null
       this.dropAnalyser(el.dataset.key!)
