@@ -14,6 +14,7 @@ export type PlayerState = {
   screen?: boolean // compartiendo pantalla (va como otra transmisión, con metadata {screen: true})
   meeting?: boolean // en una reunión de su calendario de Google (status 'busy' + esto = "En reunión")
   board?: {id: string; title: string} | null // presentando una pizarra en su llamada (ver board.ts)
+  sfu?: {s: string; t: string[]; r?: string[]} | null // su sesión en el servidor de video, qué publica y de quiénes recibe bien (ver sfu.ts)
   status: Status
 }
 
@@ -177,6 +178,7 @@ export class Net {
       !!this.last.screen !== !!s.screen ||
       !!this.last.meeting !== !!s.meeting ||
       boardKey(this.last) !== boardKey(s) ||
+      sfuKey(this.last) !== sfuKey(s) ||
       this.last.status !== s.status ||
       Math.abs(this.last.x - s.x) > 0.5 ||
       Math.abs(this.last.y - s.y) > 0.5
@@ -188,6 +190,7 @@ export class Net {
       !!this.last.screen !== !!s.screen ||
       !!this.last.meeting !== !!s.meeting ||
       boardKey(this.last) !== boardKey(s) ||
+      sfuKey(this.last) !== sfuKey(s) ||
       this.last.status !== s.status
     if ((changed && now - this.lastSentAt > 80) || zoneChanged || now - this.lastSentAt > 2000) {
       this.last = {...s}
@@ -253,3 +256,4 @@ export class Net {
 
 const short = (peerId: string) => peerId.slice(0, 6)
 const boardKey = (s: PlayerState) => (s.board ? `${s.board.id}\n${s.board.title}` : '')
+const sfuKey = (s: PlayerState) => (s.sfu ? `${s.sfu.s}\n${s.sfu.t.join(',')}\n${(s.sfu.r ?? []).join(',')}` : '')

@@ -2,6 +2,7 @@ import {initials, personById} from './config'
 import {netLog} from './diag'
 import {icon} from './icons'
 import {Ink} from './ink'
+import type {Sfu, TrackName} from './sfu'
 import type {Net, RemotePlayer, Status} from './net'
 
 const LS_CAM = 'ov.dev.cam'
@@ -10,26 +11,34 @@ const LS_SPK = 'ov.dev.spk'
 const LS_VIEW = 'ov.llamada.vista'
 const LS_SHARE_AUDIO = 'ov.compartir.sonido'
 const LS_QUALITY = 'ov.llamada.calidad'
+const LS_SFU = 'ov.llamada.servidor'
 
 /**
- * Calidad de la cámara según cuántos hay en la llamada. Sin servidor de video, cada uno manda su
- * cámara a cada uno de los demás (5 envíos en una llamada de 6, cada uno codificado aparte): con
- * más gente, menos calidad por envío, para que la subida total quede en ~1,5–2 Mbps y la compu no
- * se ahogue. Se puede fijar a mano (Alta siempre / Baja para una conexión floja).
+ * Calidad de la cámara. La cámara se toma en 720p y:
+ * - con el servidor de video (sfu.ts) se sube una vez en 3 calidades y cada uno recibe la que
+ *   corresponde al tamaño en que la ve: 720p estable aunque sean 6 o más;
+ * - por conexión directa (sin servidor, o con quien no lo usa) cada uno manda su cámara a cada uno
+ *   de los demás, así que con más gente baja la calidad de cada envío para que la subida no se
+ *   trabe. Se puede fijar a mano (Alta siempre / Baja para una conexión floja).
  */
 type QualityPref = 'auto' | 'alta' | 'baja'
-type Profile = 'alta' | 'media' | 'baja'
-const PROFILES: Record<Profile, {w: number; h: number; fps: number; kbps: number}> = {
-  alta: {w: 640, h: 360, fps: 24, kbps: 900},
-  media: {w: 480, h: 270, fps: 20, kbps: 500},
-  baja: {w: 384, h: 216, fps: 15, kbps: 300}
+type Profile = 'hd' | 'media' | 'baja'
+const PROFILES: Record<Profile, {h: number; fps: number; kbps: number}> = {
+  hd: {h: 720, fps: 30, kbps: 1800},
+  media: {h: 360, fps: 24, kbps: 800},
+  baja: {h: 270, fps: 20, kbps: 450}
 }
+/**
+ * Calidad por conexión directa (sin servidor de video), donde la compu codifica la cámara una vez
+ * por persona: 720p solo de a dos; con más, se baja para no saturarla (los 720p en llamadas
+ * grandes van por el servidor de video). `others` = a cuántos les mando directo.
+ */
 function pickProfile(pref: QualityPref, others: number, sharing: boolean): Profile {
-  if (pref !== 'auto') return pref
-  // compartiendo pantalla, la cámara pasa a segundo plano: así la compu (que codifica todo una vez
-  // por persona) prioriza que la pantalla vaya fluida
+  if (pref === 'alta') return 'hd'
+  if (pref === 'baja') return 'baja'
+  // compartiendo pantalla, la cámara pasa a segundo plano: así la compu prioriza que la pantalla vaya fluida
   if (sharing) return 'baja'
-  return others <= 2 ? 'alta' : others <= 4 ? 'media' : 'baja'
+  return others <= 1 ? 'hd' : others === 2 ? 'media' : 'baja'
 }
 /**
  * Tope de la pantalla compartida: 1080p a 30 cuadros. Sin tope, Chrome toma la resolución real
@@ -55,6 +64,18 @@ const canShareAudio = !!uaData?.brands?.some(b => /Chromium|Google Chrome|Micros
 const systemAudio = canShareAudio && /Windows|Chrome OS|ChromeOS/i.test(uaData?.platform ?? '')
 /** Cómo se ve la llamada: al costado de la oficina, en grande encima de ella, o la pantalla compartida en grande. */
 type Layout = 'side' | 'grid' | 'present'
+/**
+ * Entre lo del servidor y lo directo de una persona: lo del servidor si ya llegan datos (`ready`);
+ * si no, lo directo mientras siga vivo; si no, lo que haya.
+ */
+function pickStream(viaServer: MediaStream | undefined, ready: boolean, direct?: MediaStream): MediaStream | null {
+  const live = (m?: MediaStream) => !!m && m.getTracks().some(t => t.readyState === 'live')
+  if (ready && live(viaServer)) return viaServer!
+  if (live(direct)) return direct!
+  if (live(viaServer)) return viaServer!
+  return direct ?? viaServer ?? null
+}
+
 function pref(k: string) {
   try {
     return localStorage.getItem(k) || ''
@@ -70,7 +91,7 @@ function savePref(k: string, v: string) {
   }
 }
 const AUDIO_BASE = {echoCancellation: true, noiseSuppression: true}
-const VIDEO_BASE = {width: {ideal: 640}, height: {ideal: 360}, frameRate: {ideal: 24}}
+const VIDEO_BASE = {width: {ideal: 1280}, height: {ideal: 720}, frameRate: {ideal: 30}}
 const canPickSpeaker = 'setSinkId' in HTMLMediaElement.prototype
 
 /** Aviso abajo en la oficina (los muestra main.ts). */
@@ -95,11 +116,11 @@ export class Call {
   private acquiring: Promise<void> | null = null
   private releaseTimer: number | null = null
   private sentTo = new Set<string>()
-  private remote = new Map<string, MediaStream>()
+  private remote = new Map<string, MediaStream>() // lo que llega por conexión directa (cámara + micrófono)
   private screen: MediaStream | null = null // mi pantalla compartida
   private screenKind: Surface = 'monitor'
   private screenSentTo = new Set<string>()
-  private remoteScreens = new Map<string, MediaStream>()
+  private remoteScreens = new Map<string, MediaStream>() // pantallas por conexión directa
   private boardSource: (() => {key: string; el: HTMLElement} | null) | null = null
   private ink: Ink // anotaciones sobre pantallas compartidas (ink.ts)
   private inkNotified = new Set<string>()
@@ -107,10 +128,20 @@ export class Call {
   private screenMuted = new Set<string>() // pantallas de otros que silenciaste (id de la transmisión)
   private shareAudio = pref(LS_SHARE_AUDIO) !== '0'
   private qualityPref: QualityPref = (['alta', 'baja'] as const).find(q => q === pref(LS_QUALITY)) ?? 'auto'
-  private profile: Profile = 'alta'
+  private profile: Profile = 'hd'
   private others = 0
-  private constrained: MediaStreamTrack | null = null // cámara a la que ya se le aplicó `profile`
   private senderKeys = new WeakMap<RTCRtpSender, string>()
+  // servidor de video (sfu.ts): lo que recibo por ahí, armado en transmisiones como las directas.
+  // Va aparte de lo directo y se elige al dibujar (camOf/screenOf): en el cambio de una vía a la
+  // otra llegan las dos por un rato, y una que llega tarde no tiene que pisar a la que sigue viva.
+  private sfu: Sfu | null = null
+  private sfuOff = pref(LS_SFU) === '0' // apagado a mano en este navegador
+  private sfuBusy = false
+  private sfuWarned = false
+  private sfuRetries = 0 // reintentos automáticos en esta llamada, después de una falla
+  private sfuRetryAt = 0
+  private pulled = new Map<string, MediaStream>() // peer → cámara + micrófono
+  private pulledScr = new Map<string, MediaStream>() // peer → pantalla (+ sonido)
   private selQuality = document.getElementById('sel-quality') as HTMLSelectElement
   private qualityNow = document.getElementById('quality-now')!
   private camTrack: MediaStreamTrack | null = null
@@ -266,6 +297,7 @@ export class Call {
     track.enabled = this.camOn
     const old = this.camTrack
     this.camTrack = track
+    void this.sfu?.replace('cam', track)
     const targets = [...this.sentTo]
     if (old) {
       this.local.removeTrack(old)
@@ -297,6 +329,7 @@ export class Call {
     this.notice.textContent = ''
     track.enabled = this.micOn
     const old = this.local.getAudioTracks()[0]
+    void this.sfu?.replace('mic', track)
     const targets = [...this.sentTo]
     if (old) {
       this.local.removeTrack(old)
@@ -393,7 +426,7 @@ export class Call {
           key: p.peerId,
           name: person?.name ?? 'Invitado',
           color: person?.color ?? '#888',
-          stream: this.remote.get(p.peerId) ?? null,
+          stream: this.camOf(p.peerId),
           cam: p.cam !== false,
           mic: p.mic !== false,
           speaking: p.mic !== false && now - (this.lastSpoke.get(p.peerId) ?? 0) < 600
@@ -494,16 +527,20 @@ export class Call {
       }
     }
 
+    // servidor de video: con alguien en la llamada y cámara/micrófono listos, publico ahí (una vez)
+    if (desired.size > 0 && this.local && this.sfu?.available && !this.sfu.failed && !this.sfuOff) void this.sfuPublish()
+
+    // por conexión directa: a quienes no me reciben (todavía) por el servidor de video
     if (this.local) {
       for (const id of desired) {
-        if (!this.sentTo.has(id)) {
+        if (!this.sentTo.has(id) && !this.sfuCovers(id)) {
           this.net.room.addStream(this.local, {target: id})
           this.sentTo.add(id)
         }
       }
     }
     for (const id of [...this.sentTo]) {
-      if (!desired.has(id)) {
+      if (!desired.has(id) || this.sfuCovers(id)) {
         if (this.local && this.net.players.has(id)) {
           try {
             this.net.room.removeStream(this.local, {target: id})
@@ -517,14 +554,14 @@ export class Call {
     // mi pantalla compartida va aparte, a los mismos
     if (this.screen) {
       for (const id of desired) {
-        if (!this.screenSentTo.has(id)) {
+        if (!this.screenSentTo.has(id) && !this.sfuCovers(id)) {
           this.net.room.addStream(this.screen, {target: id, metadata: {screen: true}})
           this.screenSentTo.add(id)
         }
       }
     }
     for (const id of [...this.screenSentTo]) {
-      if (!desired.has(id)) {
+      if (!desired.has(id) || this.sfuCovers(id)) {
         if (this.screen && this.net.players.has(id)) {
           try {
             this.net.room.removeStream(this.screen, {target: id})
@@ -535,52 +572,217 @@ export class Call {
         this.screenSentTo.delete(id)
       }
     }
+    // por el servidor: recibo de cada uno lo que publica (pantalla solo si está compartiendo)
+    if (this.sfu?.active) {
+      for (const id of desired) {
+        if (!this.viaSfu(id)) continue
+        const p = this.net.players.get(id)!
+        const names = (p.sfu!.t as TrackName[]).filter(n => n === 'cam' || n === 'mic' || ((n === 'scr' || n === 'scra') && p.screen))
+        this.sfu.want(id, p.sfu!.s, names, this.ridFor(id))
+      }
+      for (const id of this.sfu.peers()) {
+        if (desired.has(id) && this.viaSfu(id)) continue
+        this.sfu.forget(id)
+        this.pulled.delete(id)
+        this.pulledScr.delete(id)
+      }
+    }
     if (desired.size > 0) this.render(desired)
     this.applyQuality(desired.size)
   }
 
   /**
-   * Ajusta lo que mando a cuántos hay en la llamada (o a lo elegido a mano): resolución y cuadros de
-   * la cámara (una sola captura para todos) y velocidad máxima de cada envío. Barato: se llama
-   * seguido y solo toca lo que cambió (o los envíos nuevos).
+   * Calidad de lo que mando por conexión directa según cuántos hay (o lo elegido a mano): la
+   * cámara se toma en 720p y cada envío la achica (`scaleResolutionDownBy`) y limita su
+   * velocidad. Lo que va por el servidor de video tiene sus 3 calidades fijas (sfu.ts). Barato:
+   * se llama seguido y solo toca lo que cambió (o los envíos nuevos).
    */
   private applyQuality(others: number) {
     this.others = others
-    const next = pickProfile(this.qualityPref, others, !!this.screen)
+    const direct = [...this.sentTo].length
+    const next = pickProfile(this.qualityPref, direct || others, !!this.screen)
     if (next !== this.profile) {
-      netLog(`Calidad de cámara: ${next} (${others + 1} en la llamada${this.qualityPref === 'auto' ? (this.screen ? ', compartiendo pantalla' : '') : ', elegida a mano'})`)
+      netLog(`Calidad por conexión directa: ${PROFILES[next].h}p (${others + 1} en la llamada${this.qualityPref === 'auto' ? (this.screen ? ', compartiendo pantalla' : '') : ', elegida a mano'})`)
       this.profile = next
-      this.constrained = null
     }
     const p = PROFILES[this.profile]
     const cam = this.camTrack
-    if (cam && cam.readyState === 'live' && this.constrained !== cam) {
-      this.constrained = cam
-      void cam.applyConstraints({width: {ideal: p.w}, height: {ideal: p.h}, frameRate: {ideal: p.fps}}).catch(() => {})
-    }
+    const capH = cam?.getSettings().height ?? 720
     const scr = this.screen?.getVideoTracks()[0] ?? null
-    const scrKbps = screenKbps(this.qualityPref, others)
+    const scrKbps = screenKbps(this.qualityPref, direct || others)
     for (const pc of Object.values(this.net.connections())) {
       for (const sender of pc.getSenders()) {
         const isScr = !!scr && sender.track === scr
         if (!sender.track || (!isScr && sender.track !== cam)) continue
-        const key = isScr ? `scr:${scrKbps}` : `cam:${this.profile}`
+        const scale = Math.max(1, capH / p.h)
+        const key = isScr ? `scr:${scrKbps}` : `cam:${this.profile}:${capH}`
         if (this.senderKeys.get(sender) === key) continue
         const params = sender.getParameters()
         if (!params.encodings?.length) continue // todavía negociando: se reintenta en la próxima vuelta
         this.senderKeys.set(sender, key)
         params.encodings[0].maxBitrate = (isScr ? scrKbps : p.kbps) * 1000
-        if (!isScr) params.encodings[0].maxFramerate = p.fps
+        if (!isScr) {
+          params.encodings[0].maxFramerate = p.fps
+          params.encodings[0].scaleResolutionDownBy = scale
+        }
         void sender.setParameters(params).catch(() => this.senderKeys.delete(sender))
       }
     }
+    // por el servidor: con "Baja" a mano, o mientras compartís pantalla, no se manda la calidad de 720p
+    this.sfu?.setTopLayer(this.qualityPref === 'alta' || (this.qualityPref !== 'baja' && !this.screen))
     this.qualityNow.textContent = others ? `Ahora: ${this.qualityText}` : ''
   }
 
   /** Para el diagnóstico y el menú de dispositivos. */
   get qualityText() {
     const p = PROFILES[this.profile]
-    return `${this.profile} (${p.h}p, ${p.fps} cuadros, hasta ${p.kbps} kbps por persona) · ${this.others + 1} en la llamada${this.qualityPref === 'auto' ? '' : ' · elegida a mano'}`
+    const viaSfu = this.sfu?.active ? this.sfu.peers().size : 0
+    const direct = this.sentTo.size
+    const parts: string[] = []
+    const top = this.qualityPref === 'alta' || (this.qualityPref !== 'baja' && !this.screen)
+    if (viaSfu) parts.push(`${top ? '720p' : '360p'} por el servidor de video (${viaSfu})`)
+    if (direct || !viaSfu) parts.push(`${p.h}p a ${p.fps} cuadros por conexión directa${direct ? ` (${direct})` : ''}`)
+    return `${parts.join(' · ')} · ${this.others + 1} en la llamada${this.qualityPref === 'auto' ? '' : ' · elegida a mano'}`
+  }
+
+  // ── servidor de video ──
+
+  /** Usar el servidor de video (sfu.ts) en esta llamada. Lo arma main.ts. */
+  setSfu(sfu: Sfu) {
+    this.sfu = sfu
+  }
+
+  /** Lo que va en mi estado: mi sesión del servidor y qué publico (null = todo por conexión directa). */
+  get sfuState() {
+    return this.sfuOff ? null : (this.sfu?.state ?? null)
+  }
+
+  get sfuEnabled() {
+    return !this.sfuOff
+  }
+
+  /** Apagar/prender el servidor de video en este navegador (Ajustes). */
+  setSfuEnabled(on: boolean) {
+    this.sfuOff = !on
+    savePref(LS_SFU, on ? '1' : '0')
+    this.dropSfu()
+    if (on) this.sfu?.reset() // prenderlo a mano vuelve a intentar aunque antes haya fallado
+    this.reconcile()
+  }
+
+  /** Cómo está el servidor de video, para Ajustes y el diagnóstico. */
+  get sfuText() {
+    const s = this.sfu
+    if (this.sfuOff) return 'apagado en este navegador'
+    if (!s || s.available === null) return 'consultando…'
+    if (!s.available) return 'no configurado (todo va por conexión directa)'
+    if (s.failed) return `falló (${s.failed.slice(0, 120)}); la llamada sigue por conexión directa`
+    if (!s.active) return 'listo (se usa al entrar a una llamada)'
+    return `activo · recibo de ${s.peers().size} ${s.peers().size === 1 ? 'persona' : 'personas'}`
+  }
+
+  /** ¿Recibo a esta persona por el servidor? Si los dos publicamos ahí. */
+  private viaSfu(id: string) {
+    if (this.sfuOff || !this.sfu?.active || !this.sfu.state) return false
+    const p = this.net.players.get(id)?.sfu
+    return !!p && typeof p.s === 'string' && Array.isArray(p.t)
+  }
+
+  /**
+   * ¿Ya no hace falta mandarle directo? Cuando avisa (en su estado) que mi cámara le llega por el
+   * servidor: hasta entonces van las dos, para que el cambio no deje cuadros en negro.
+   */
+  private sfuCovers(id: string) {
+    if (!this.viaSfu(id)) return false
+    const r = this.net.players.get(id)?.sfu?.r
+    return Array.isArray(r) && r.includes(this.net.selfId)
+  }
+
+  /** Publica en el servidor lo que tengo (cámara, micrófono, pantalla) y saca lo que ya no. */
+  private async sfuPublish() {
+    const sfu = this.sfu
+    if (!sfu || this.sfuBusy) return
+    const items: {name: TrackName; track: MediaStreamTrack}[] = []
+    if (this.camTrack) items.push({name: 'cam', track: this.camTrack})
+    const mic = this.local?.getAudioTracks()[0]
+    if (mic) items.push({name: 'mic', track: mic})
+    const scr = this.screen?.getVideoTracks()[0]
+    if (scr) items.push({name: 'scr', track: scr})
+    const scra = this.screen?.getAudioTracks()[0]
+    if (scra) items.push({name: 'scra', track: scra})
+    const missing = items.filter(i => !sfu.has(i.name))
+    const gone = (['scr', 'scra'] as TrackName[]).filter(n => sfu.has(n) && !items.some(i => i.name === n))
+    // ya publicada pero con otra pista (por ejemplo, volviste a compartir antes de que se sacara la anterior)
+    for (const i of items) if (sfu.has(i.name) && sfu.publishedTrack(i.name) !== i.track) void sfu.replace(i.name, i.track)
+    if (!missing.length && !gone.length) return
+    this.sfuBusy = true
+    try {
+      await sfu.start()
+      if (gone.length) await sfu.unpublish(gone)
+      if (missing.length) await sfu.publish(missing)
+    } catch {
+      /* sfu.ts ya avisó por onFail */
+    } finally {
+      this.sfuBusy = false
+    }
+    this.reconcile()
+  }
+
+  /** Llega una pista por el servidor: se arma (o rearma) la transmisión de esa persona. */
+  onSfuTrack(peer: string, name: TrackName, track: MediaStreamTrack) {
+    const screen = name === 'scr' || name === 'scra'
+    const m = screen ? this.pulledScr : this.pulled
+    const prev = m.get(peer)
+    const tracks = (prev?.getTracks() ?? []).filter(t => t.kind !== track.kind && t.readyState === 'live')
+    const s = new MediaStream([...tracks, track])
+    m.set(peer, s)
+    track.onended = () => this.reconcile()
+    this.reconcile()
+  }
+
+  /**
+   * El servidor falló: todo vuelve a la conexión directa (y se avisa una vez). Se reintenta solo
+   * a los 2 y a los 5 minutos (un corte pasajero no deja toda la llamada en baja calidad); si sigue
+   * fallando, en la próxima llamada.
+   */
+  onSfuFail(why: string) {
+    this.dropSfu()
+    if (!this.sfuWarned && this.inCall) {
+      this.sfuWarned = true
+      say('El servidor de video no respondió: la llamada sigue por conexión directa (con menos calidad).')
+    }
+    const wait = [120_000, 300_000][this.sfuRetries]
+    this.sfuRetryAt = wait ? performance.now() + wait : 0
+    void why
+    this.reconcile()
+  }
+
+  /** Olvida lo recibido por el servidor (para que lo reemplace lo que llegue directo). */
+  private dropSfu() {
+    this.pulled.clear()
+    this.pulledScr.clear()
+    this.sfu?.close()
+  }
+
+  /** Cámara + micrófono de alguien: lo del servidor si ya está llegando; si no, lo directo. */
+  private camOf(id: string) {
+    return pickStream(this.pulled.get(id), !!this.sfu?.receiving().includes(id), this.remote.get(id))
+  }
+
+  /** La pantalla de alguien: la del servidor recién cuando llegan datos (para no mostrar un cuadro negro grande). */
+  private screenOf(id: string) {
+    const ready = !!this.sfu?.flowing(id, 'scr')
+    return pickStream(ready ? this.pulledScr.get(id) : undefined, ready, this.remoteScreens.get(id))
+  }
+
+  /** Qué calidad pedir de la cámara de alguien: según el tamaño real (en píxeles de pantalla) de su cuadro. */
+  private ridFor(id: string) {
+    if (this.qualityPref === 'alta') return 'a'
+    const t = this.panel.querySelector<HTMLElement>(`.tile[data-key="${CSS.escape(id)}"]`)
+    const w = (t?.clientWidth ?? 0) * (window.devicePixelRatio || 1)
+    // 360p (b) se ve bien hasta ~640 px reales; 180p (c) solo para cuadros chiquitos
+    const rid = !w ? 'b' : w >= 640 ? 'a' : w >= 240 ? 'b' : 'c'
+    return this.qualityPref === 'baja' && rid === 'a' ? 'b' : rid
   }
 
   onRemoteStream(stream: MediaStream, peerId: string, meta?: unknown) {
@@ -614,6 +816,9 @@ export class Call {
 
   onPeerGone(peerId: string) {
     this.pcs.delete(peerId)
+    this.sfu?.forget(peerId)
+    this.pulled.delete(peerId)
+    this.pulledScr.delete(peerId)
     this.remote.delete(peerId)
     this.remoteScreens.delete(peerId)
     this.sentTo.delete(peerId)
@@ -634,6 +839,10 @@ export class Call {
     }
     this.sentTo.clear()
     this.stopScreen(false)
+    this.dropSfu()
+    this.sfu?.reset() // la conexión con el servidor de video se cierra al cortar; en la próxima se vuelve a intentar
+    this.sfuRetries = 0
+    this.sfuRetryAt = 0
     this.local?.getTracks().forEach(t => t.stop())
     this.local = null
     this.camTrack = null
@@ -889,12 +1098,12 @@ export class Call {
         key: p.peerId,
         name: person?.name ?? 'Invitado',
         color: person?.color ?? '#888',
-        stream: this.remote.get(p.peerId) ?? null,
+        stream: this.camOf(p.peerId),
         self: false,
         cam: p.cam !== false,
         mic: p.mic !== false
       })
-      const scr = this.remoteScreens.get(p.peerId)
+      const scr = this.screenOf(p.peerId)
       if (p.screen && scr?.getVideoTracks().some(t => t.readyState === 'live')) {
         screens.push({key: `scr:${p.peerId}`, name: `Pantalla de ${(person?.name ?? 'Invitado').split(' ')[0]}`, stream: scr, owner: p.peerId})
       }
@@ -1047,7 +1256,14 @@ export class Call {
 
   /** Refresca estados visuales (cámara apagada, etc.) — barato, se llama ~1/s. */
   tick() {
+    if (this.sfuRetryAt && performance.now() > this.sfuRetryAt && this.sfu?.failed && !this.sfuOff && this.inCall) {
+      this.sfuRetryAt = 0
+      this.sfuRetries++
+      netLog(`Servidor de video: reintento ${this.sfuRetries}`)
+      this.sfu.reset()
+    }
     this.reconcile()
+    void this.sfu?.watchdog()
   }
 }
 

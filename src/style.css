@@ -615,3 +615,7 @@ body.call-big #map-ctrl { display: none; }
 .ink-tool.sel { background: var(--magenta); color: #fff; }
 .ink-act[hidden] { display: none; }
 .ink-sep { width: 1px; height: 20px; flex: none; background: rgba(2, 0, 3, 0.1); margin: 0 4px; }
+
+/* Ajustes: interruptor simple */
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg); cursor: pointer; margin: 2px 0 8px; }
+.check-row input { accent-color: var(--magenta); width: 16px; height: 16px; }

@@ -28,6 +28,16 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
   ellos, charla por cercanía: `updateTalk()` en `main.ts` arma el set `talking`
   (mismo `areaAt`, ambos disponibles, se conecta a < `TALK_IN` y se corta a >
   `TALK_OUT`) y `Call` lo usa cuando `zone === null`.
+- **Servidor de video** (Cloudflare Realtime *Serverless SFU*, `src/sfu.ts`): en llamada, cada uno
+  sube su cámara una vez en 3 calidades (simulcast: `a` = 720p, `b` = 360p, `c` = 180p) y baja la
+  de los demás según el tamaño real del cuadro (`ridFor` en call.ts). La API la llama el Dashboard
+  (`/api/office/sfu`, variables `CF_SFU_APP_ID` / `CF_SFU_APP_SECRET`, misma prueba de clave que
+  el TURN). Cada uno anuncia `PlayerState.sfu = {s, t, r}`: su sesión, qué publica y de quiénes ya
+  le llegan cámara **y** micrófono por ahí. Pasar de directo al servidor es "conectar antes de
+  cortar": se sigue mandando directo hasta aparecer en el `r` del otro. Si por el servidor no llega
+  nada, todo vuelve a directo (reintenta a los 2 y 5 min); si falla una sola persona, a ella se la
+  recibe directo y el resto sigue por el servidor. Se apaga por navegador en Ajustes → Conexión
+  (`ov.llamada.servidor`). Sin el Dashboard configurado (503), todo va directo como antes.
 - **Versión nueva**: la pestaña queda abierta todo el día, así que `checkUpdate()` en `main.ts`
   compara cada 5 min (y al volver a la pestaña) el `assets/index-*.js` publicado con el que corre
   y, si cambió, muestra un aviso fijo con "Actualizar" (no recarga sola para no cortar llamadas).
@@ -46,9 +56,10 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 | `src/mini.ts` | Mini ventana flotante (Document Picture-in-Picture, solo Chrome/Edge): mini mapa con `drawSimpleMap`, avisos de cercanía/visitas, videos de la llamada (`Call.peers()`), mic/cámara/no molestar. Botón `#btn-mini` o tecla P; Chrome la abre sola al cambiar de pestaña en llamada (Media Session `enterpictureinpicture`) |
 | `src/path.ts` | Búsqueda de camino (A*) sobre la grilla de colisiones de `map.ts`, con suavizado. La usan el clic en el mapa y "ir a mi escritorio" (`walkTo` en `main.ts`) |
 | `src/net.ts` | Capa Trystero (state, chat, wave, react, ask). `ask` = "mandame tu estado": `prune()` lo usa con quien está conectado sin estado o lleva >10 s callado; `onJoin` avisa a `Call.onPeerJoined` para reenviar cámara/pantalla si la conexión se rearmó |
+| `src/sfu.ts` | Servidor de video: sesión con Cloudflare (por el Dashboard), publicar (`publish`/`unpublish`, cámara con `CAM_LAYERS`), recibir (`want`/`forget`, `updateRid`), negociaciones en fila (`queue`, cancela al cerrar), `watchdog()` (marca pistas que ya traen datos → `receiving()`/`r`; falla si no llega nada). Errores de una sola pista (`close_track_error`, alguien que se fue) no tiran abajo el servidor |
 | `src/turn.ts` | Pide al Dashboard (`/api/office/turn`, header `x-office-proof` = sha256("oficina-virtual:turn:"+clave)) credenciales TURN de Cloudflare antes de entrar a la sala; sin Dashboard o sin configurar, sigue sin respaldo |
 | `src/diag.ts` | Registro de eventos de conexión (`netLog`) y `linkInfo` (directo/respaldo, demora) para Ajustes → Conexión y "Copiar diagnóstico" |
-| `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla. Vistas de la llamada (`data-layout` en `#call`: `side` al costado, `grid` en grande sobre la oficina con `fitGrid()`, `present` pantalla compartida en grande + caras al costado; `ov.llamada.vista`). Calidad según cuántos hay (`applyQuality` al final de `reconcile`: perfiles alta/media/baja → `applyConstraints` de la cámara + `maxBitrate` por envío; `ov.llamada.calidad` para fijarla a mano). La pantalla va como otra transmisión con metadata `{screen: true}` y el estado `screen` en `PlayerState`. Menú `#share-menu` (main.ts lo abre): `startScreen(surface)` con `displaySurface` como preselección y sonido opcional (`ov.compartir.sonido`; solo Chromium: pestaña siempre, pantalla en Windows/ChromeOS); la pista de audio viaja en la misma transmisión y quien la recibe la puede silenciar (`.tile-snd`). Avisos desde call.ts con el evento `ov:toast` |
+| `src/call.ts` | Video/audio, dispositivos, compartir pantalla, quién habla. Vistas de la llamada (`data-layout` en `#call`: `side` al costado, `grid` en grande sobre la oficina con `fitGrid()`, `present` pantalla compartida en grande + caras al costado; `ov.llamada.vista`). Calidad por conexión directa (`applyQuality` al final de `reconcile`: la cámara se toma en 720p y cada envío se achica con `scaleResolutionDownBy` + `maxBitrate`; perfiles hd/media/baja según a cuántos se manda directo, baja mientras compartís pantalla; `ov.llamada.calidad` para fijarla a mano). Pantalla compartida con tope 1080p a 30 cuadros (`SCREEN_MAX`). Lo recibido por el servidor de video va aparte de lo directo (`pulled`/`pulledScr`) y se elige al dibujar (`camOf`/`screenOf`: el del servidor recién cuando llegan datos). La pantalla va como otra transmisión con metadata `{screen: true}` y el estado `screen` en `PlayerState`. Menú `#share-menu` (main.ts lo abre): `startScreen(surface)` con `displaySurface` como preselección y sonido opcional (`ov.compartir.sonido`; solo Chromium: pestaña siempre, pantalla en Windows/ChromeOS); la pista de audio viaja en la misma transmisión y quien la recibe la puede silenciar (`.tile-snd`). Avisos desde call.ts con el evento `ov:toast` |
 | `src/ink.ts` | Anotar sobre pantallas compartidas: capa `<canvas class="ink">` en cada cuadro de pantalla (`Ink.attach` desde `Call.render`, también en "Tu pantalla" de quien comparte), puntos relativos a la imagen (0..1 sin franjas), trazos por id de la transmisión, acción `ink` (`pts`/`end`/`undo`/`clear`/`hi`/`all`) |
 | `src/board.ts` | Pizarras (Compartir → Una pizarra): `BoardController` presenta la pizarra en `PlayerState.board`, sincroniza elementos por la acción `board` (`els` / `hi` / `ptr`), guarda en el Dashboard (`/api/office/boards`, prueba de la clave; el servidor mezcla por versión) y le da a `Call` el cuadro (`call.setBoard`). `src/board-view.ts` = Excalidraw + React, import dinámico (no entra en el bundle inicial). Teclas: dentro de la pizarra no corren los atajos de la oficina (`inBoard` en main.ts) |
 | `src/session.ts` | Ingreso: decide al abrir entre sesión de Google, botón "Entrar con Google" o login de clave; logout |
@@ -67,6 +78,11 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 - `?debug=1` en la URL: dibuja colisiones (rojo) y zonas (verde) y expone `window.__ov.pos`.
 - `?relay=ws://localhost:7777` usa un relay propio (útil si los públicos están bloqueados).
 - Para probar varias personas: abrir varias ventanas (o perfiles) con la misma clave y distinta persona.
+- Servidor de video sin Cloudflare: el Dashboard acepta `CF_SFU_API_BASE` para apuntar a una imitación
+  local de la API. Ojo: Chrome no procesa un audio recibido si nada lo reproduce, así que una imitación
+  hecha con Chrome tiene que enchufar cada pista de audio a un `<audio>` o no reenvía sonido.
+- Las pruebas con muchos navegadores (6 personas con video) cargan mucho la compu: si es la misma con la
+  que se está en llamada, la traban. Preferir 2-3 personas y cerrar todo al terminar.
 
 ## Reglas del proyecto
 - Mantener la geometría en `map.ts` y que dibujo, colisiones y zonas salgan de ahí.
@@ -78,6 +94,7 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 - Personajes sentados al llegar a su escritorio (el pack trae animaciones `sit`).
 - Ingreso con Google + calendario: código listo; falta configurar Google Cloud y las variables en
   Vercel (Dashboard). Probar el ingreso real una vez configurado.
-- Servidor de respaldo (TURN de Cloudflare): código listo (`src/turn.ts` + `/api/office/turn` en el Dashboard); falta cargar `CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN` y `OFFICE_KEY` en Vercel (Dashboard). Verificar en Ajustes → Conexión que diga "activo".
+- Servidor de respaldo (TURN de Cloudflare): configurado en Vercel (Dashboard; `/api/office/turn` responde 403 sin la clave). Verificar en Ajustes → Conexión que diga "activo".
+- Servidor de video (SFU de Cloudflare): variables cargadas en Vercel (Dashboard; `/api/office/sfu` responde 403 sin la clave). Falta la primera prueba real: en una llamada de 2+, Ajustes → Conexión tiene que decir "Servidor de video: activo · recibo de N personas"; si dice "falló", el motivo está en "Copiar diagnóstico".
 - Posible futuro: estilo 3D/isométrico con assets KayKit (ver conversación: empezar pre-renderizando a sprites 2D).
 - Los archivos `Modern_Interiors_Free_v2.2.zip` y `MetroCity 2.0.rar` en la raíz del repo: pendiente decidir si se eliminan.

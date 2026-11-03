@@ -15,6 +15,7 @@ import {Calendar, hhmm} from './calendar'
 import {BoardController, deleteBoard, listBoards, newBoardMeta} from './board'
 import {linkInfo, netEvents, netLog} from './diag'
 import {loadTurn, type TurnInfo} from './turn'
+import {Sfu} from './sfu'
 import {hydrateIcons, icon} from './icons'
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T
@@ -247,6 +248,14 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     changed: () => call.reconcile()
   })
   call.setBoard(() => board.tile())
+  // servidor de video (720p estable en llamadas grandes; ver src/sfu.ts)
+  const sfu = new Sfu(key, turn.servers, {
+    onTrack: (peer, name, track) => call.onSfuTrack(peer, name, track),
+    onFail: why => call.onSfuFail(why),
+    onFlow: () => call.reconcile()
+  })
+  call.setSfu(sfu)
+  void sfu.check()
   board.el.querySelector<HTMLButtonElement>('[data-act=expand]')!.onclick = () => call.setView('present')
 
   // burbujas de chat "cerca" sobre los personajes
@@ -1094,7 +1103,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     requestAnimationFrame(step)
   }
 
-  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking, net, call, board, walkTo}
+  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking, net, call, board, walkTo, sfu, events: netEvents}
 
   /**
    * ¿Con quién estoy lo bastante cerca para charlar? Solo fuera de cubículos y salas, en el mismo
@@ -1133,6 +1142,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       screen: call.sharingScreen,
       meeting: status === 'busy' && inMeeting(),
       board: board.presentingState,
+      sfu: call.sfuState,
       status
     }
   }
@@ -1729,6 +1739,8 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     linksBusy = true
     try {
       $('net-turn').textContent = turnText()
+      $('net-sfu').textContent = `Servidor de video: ${call.sfuText}.`
+      $<HTMLInputElement>('chk-sfu').checked = call.sfuEnabled
       const links = await collectLinks()
       $('net-links').replaceChildren(
         ...links.map(l => {
@@ -1747,6 +1759,10 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     }
   }
   setInterval(() => void renderLinks(), 2000)
+  $<HTMLInputElement>('chk-sfu').onchange = e => {
+    call.setSfuEnabled((e.target as HTMLInputElement).checked)
+    void renderLinks()
+  }
   $('btn-diag').onclick = async () => {
     const {open, total} = net.relayStatus()
     const links = await collectLinks()
@@ -1759,6 +1775,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       `Respaldo (TURN): ${turn.source}${turn.note ? ` (${turn.note})` : ''}`,
       `En llamada: ${$('call').hidden ? 'no' : `sí (${$('call').dataset.layout})`} · imágenes: ${assets ? Object.keys(assets.characters).length : 0}/${SPRITE_COUNT}`,
       `Calidad de cámara: ${call.qualityText}`,
+      `Servidor de video: ${call.sfuText}`,
       '',
       'Conexiones:',
       ...(links.length ? links.map(l => `- ${l.name} [${l.id.slice(0, 6)}]: ${l.raw} · en el mapa: ${l.inMap ? 'sí' : 'NO'}`) : ['- (nadie)']),
