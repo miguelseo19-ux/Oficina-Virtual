@@ -382,6 +382,8 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
   background: #f6f4f3; border: 1px solid rgba(2, 0, 3, 0.1); border-radius: 8px; padding: 8px 10px; min-width: 0; width: 100%;
 }
 #devices select:focus { outline: none; border-color: var(--magenta); }
+#quality-now { margin: -4px 0 0; font: 500 10px/1.5 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: rgba(2, 0, 3, 0.5); }
+#quality-now:empty { display: none; }
 
 /* Menú "Compartir": qué se comparte y si va con sonido */
 #share-menu, #board-menu { min-width: 290px; padding: 10px; gap: 2px; }

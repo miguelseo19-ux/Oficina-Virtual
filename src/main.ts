@@ -1758,6 +1758,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       `Servidores de señalización: ${open}/${total}`,
       `Respaldo (TURN): ${turn.source}${turn.note ? ` (${turn.note})` : ''}`,
       `En llamada: ${$('call').hidden ? 'no' : `sí (${$('call').dataset.layout})`} · imágenes: ${assets ? Object.keys(assets.characters).length : 0}/${SPRITE_COUNT}`,
+      `Calidad de cámara: ${call.qualityText}`,
       '',
       'Conexiones:',
       ...(links.length ? links.map(l => `- ${l.name} [${l.id.slice(0, 6)}]: ${l.raw} · en el mapa: ${l.inMap ? 'sí' : 'NO'}`) : ['- (nadie)']),

@@ -28,6 +28,12 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
   puede achicar con los botones de vista (queda como un cuadro más) y volver a
   agrandar con el botón de pantalla. Quien comparte sigue mostrando su cámara y
   ve un aviso con "Dejar de compartir".
+- **Calidad de video automática**: como no hay servidor de video, cada uno manda
+  su cámara a cada uno de los demás. Con más gente baja la calidad por envío para
+  que la subida no se trabe: hasta 3 en la llamada, 360p; con 4–5, 270p; con 6 o
+  más, 216p a 15 cuadros (unos 1,5 Mbps de subida en total). La pantalla
+  compartida mantiene la resolución y se limita su velocidad. En el menú de
+  cámara/micrófono se puede fijar "Alta siempre" o "Baja (conexión floja)".
 - **Anotar sobre una pantalla compartida** (como en Zoom): en el cuadro de la
   pantalla, "Anotar" y se dibuja encima; lo ven todos los de la llamada en vivo,
   con el color y el nombre de cada uno. Lápiz (queda) o puntero láser (se borra

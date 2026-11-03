@@ -9,6 +9,30 @@ const LS_MIC = 'ov.dev.mic'
 const LS_SPK = 'ov.dev.spk'
 const LS_VIEW = 'ov.llamada.vista'
 const LS_SHARE_AUDIO = 'ov.compartir.sonido'
+const LS_QUALITY = 'ov.llamada.calidad'
+
+/**
+ * Calidad de la cámara según cuántos hay en la llamada. Sin servidor de video, cada uno manda su
+ * cámara a cada uno de los demás (5 envíos en una llamada de 6, cada uno codificado aparte): con
+ * más gente, menos calidad por envío, para que la subida total quede en ~1,5–2 Mbps y la compu no
+ * se ahogue. Se puede fijar a mano (Alta siempre / Baja para una conexión floja).
+ */
+type QualityPref = 'auto' | 'alta' | 'baja'
+type Profile = 'alta' | 'media' | 'baja'
+const PROFILES: Record<Profile, {w: number; h: number; fps: number; kbps: number}> = {
+  alta: {w: 640, h: 360, fps: 24, kbps: 900},
+  media: {w: 480, h: 270, fps: 20, kbps: 500},
+  baja: {w: 384, h: 216, fps: 15, kbps: 300}
+}
+function pickProfile(pref: QualityPref, others: number): Profile {
+  if (pref !== 'auto') return pref
+  return others <= 2 ? 'alta' : others <= 4 ? 'media' : 'baja'
+}
+/** La pantalla compartida mantiene la resolución (que el texto se lea) y se le limita la velocidad. */
+function screenKbps(pref: QualityPref, others: number) {
+  if (pref === 'baja') return 800
+  return others <= 2 ? 2500 : others <= 4 ? 1500 : 1000
+}
 /** Qué se comparte: una pestaña del navegador, una ventana o toda la pantalla (nombres de getDisplayMedia). */
 type Surface = 'browser' | 'window' | 'monitor'
 const SURFACE_TEXT: Record<Surface, string> = {browser: 'una pestaña', window: 'una ventana', monitor: 'toda tu pantalla'}
@@ -73,6 +97,13 @@ export class Call {
   private pcs = new Map<string, RTCPeerConnection>() // conexión con cada uno (para notar si se rearmó)
   private screenMuted = new Set<string>() // pantallas de otros que silenciaste (id de la transmisión)
   private shareAudio = pref(LS_SHARE_AUDIO) !== '0'
+  private qualityPref: QualityPref = (['alta', 'baja'] as const).find(q => q === pref(LS_QUALITY)) ?? 'auto'
+  private profile: Profile = 'alta'
+  private others = 0
+  private constrained: MediaStreamTrack | null = null // cámara a la que ya se le aplicó `profile`
+  private senderKeys = new WeakMap<RTCRtpSender, string>()
+  private selQuality = document.getElementById('sel-quality') as HTMLSelectElement
+  private qualityNow = document.getElementById('quality-now')!
   private camTrack: MediaStreamTrack | null = null
   private view: 'side' | 'grid' = pref(LS_VIEW) === 'grid' ? 'grid' : 'side'
   private layout: Layout = 'side'
@@ -156,6 +187,12 @@ export class Call {
     this.selCam.onchange = () => void this.switchCam(this.selCam.value)
     this.selMic.onchange = () => void this.switchMic(this.selMic.value)
     this.selSpk.onchange = () => this.setSpeaker(this.selSpk.value)
+    this.selQuality.value = this.qualityPref
+    this.selQuality.onchange = () => {
+      this.qualityPref = this.selQuality.value as QualityPref
+      savePref(LS_QUALITY, this.qualityPref)
+      this.reconcile()
+    }
     if (!canPickSpeaker) (document.getElementById('spk-row') as HTMLElement).hidden = true
     navigator.mediaDevices?.addEventListener?.('devicechange', () => {
       if (!this.devPanel.hidden) void this.fillDevices()
@@ -490,6 +527,51 @@ export class Call {
       }
     }
     if (desired.size > 0) this.render(desired)
+    this.applyQuality(desired.size)
+  }
+
+  /**
+   * Ajusta lo que mando a cuántos hay en la llamada (o a lo elegido a mano): resolución y cuadros de
+   * la cámara (una sola captura para todos) y velocidad máxima de cada envío. Barato: se llama
+   * seguido y solo toca lo que cambió (o los envíos nuevos).
+   */
+  private applyQuality(others: number) {
+    this.others = others
+    const next = pickProfile(this.qualityPref, others)
+    if (next !== this.profile) {
+      netLog(`Calidad de cámara: ${next} (${others + 1} en la llamada${this.qualityPref === 'auto' ? '' : ', elegida a mano'})`)
+      this.profile = next
+      this.constrained = null
+    }
+    const p = PROFILES[this.profile]
+    const cam = this.camTrack
+    if (cam && cam.readyState === 'live' && this.constrained !== cam) {
+      this.constrained = cam
+      void cam.applyConstraints({width: {ideal: p.w}, height: {ideal: p.h}, frameRate: {ideal: p.fps}}).catch(() => {})
+    }
+    const scr = this.screen?.getVideoTracks()[0] ?? null
+    const scrKbps = screenKbps(this.qualityPref, others)
+    for (const pc of Object.values(this.net.connections())) {
+      for (const sender of pc.getSenders()) {
+        const isScr = !!scr && sender.track === scr
+        if (!sender.track || (!isScr && sender.track !== cam)) continue
+        const key = isScr ? `scr:${scrKbps}` : `cam:${this.profile}`
+        if (this.senderKeys.get(sender) === key) continue
+        const params = sender.getParameters()
+        if (!params.encodings?.length) continue // todavía negociando: se reintenta en la próxima vuelta
+        this.senderKeys.set(sender, key)
+        params.encodings[0].maxBitrate = (isScr ? scrKbps : p.kbps) * 1000
+        if (!isScr) params.encodings[0].maxFramerate = p.fps
+        void sender.setParameters(params).catch(() => this.senderKeys.delete(sender))
+      }
+    }
+    this.qualityNow.textContent = others ? `Ahora: ${this.qualityText}` : ''
+  }
+
+  /** Para el diagnóstico y el menú de dispositivos. */
+  get qualityText() {
+    const p = PROFILES[this.profile]
+    return `${this.profile} (${p.h}p, ${p.fps} cuadros, hasta ${p.kbps} kbps por persona) · ${this.others + 1} en la llamada${this.qualityPref === 'auto' ? '' : ' · elegida a mano'}`
   }
 
   onRemoteStream(stream: MediaStream, peerId: string, meta?: unknown) {
