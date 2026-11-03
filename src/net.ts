@@ -13,6 +13,7 @@ export type PlayerState = {
   cam: boolean
   screen?: boolean // compartiendo pantalla (va como otra transmisión, con metadata {screen: true})
   meeting?: boolean // en una reunión de su calendario de Google (status 'busy' + esto = "En reunión")
+  board?: {id: string; title: string} | null // presentando una pizarra en su llamada (ver board.ts)
   status: Status
 }
 
@@ -172,6 +173,7 @@ export class Net {
       this.last.cam !== s.cam ||
       !!this.last.screen !== !!s.screen ||
       !!this.last.meeting !== !!s.meeting ||
+      boardKey(this.last) !== boardKey(s) ||
       this.last.status !== s.status ||
       Math.abs(this.last.x - s.x) > 0.5 ||
       Math.abs(this.last.y - s.y) > 0.5
@@ -182,6 +184,7 @@ export class Net {
       this.last.cam !== s.cam ||
       !!this.last.screen !== !!s.screen ||
       !!this.last.meeting !== !!s.meeting ||
+      boardKey(this.last) !== boardKey(s) ||
       this.last.status !== s.status
     if ((changed && now - this.lastSentAt > 80) || zoneChanged || now - this.lastSentAt > 2000) {
       this.last = {...s}
@@ -246,3 +249,4 @@ export class Net {
 }
 
 const short = (peerId: string) => peerId.slice(0, 6)
+const boardKey = (s: PlayerState) => (s.board ? `${s.board.id}\n${s.board.title}` : '')

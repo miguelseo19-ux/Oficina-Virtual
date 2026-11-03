@@ -12,6 +12,7 @@ import {findPath} from './path'
 import {MiniWindow, miniSupported} from './mini'
 import {boot, LOGIN_URL, logoutGoogle, takeLoginError} from './session'
 import {Calendar, hhmm} from './calendar'
+import {BoardController, deleteBoard, listBoards, newBoardMeta} from './board'
 import {linkInfo, netEvents, netLog} from './diag'
 import {loadTurn, type TurnInfo} from './turn'
 import {hydrateIcons, icon} from './icons'
@@ -240,6 +241,13 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     return area ? `Charla en la ${area.toLowerCase()}` : 'Charla en el pasillo'
   }
   const call = new Call(net, me.id, callLabel, () => status, () => talking)
+  // pizarras compartidas en las llamadas (ver src/board.ts)
+  const board = new BoardController(net, me, key, call, {
+    toast: (msg, ic) => toast(msg, [], ic ?? 'board'),
+    changed: () => call.reconcile()
+  })
+  call.setBoard(() => board.tile())
+  board.el.querySelector<HTMLButtonElement>('[data-act=expand]')!.onclick = () => call.setView('present')
 
   // burbujas de chat "cerca" sobre los personajes
   const bubbles = new Map<string, {text: string; until: number}>()
@@ -301,7 +309,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
   $('side-collapse').onclick = () => setView(null)
 
   // ── menús de la burbuja (estado / reacciones / dispositivos) ──
-  const MENUS = ['status-menu', 'react-menu', 'devices', 'view-menu', 'share-menu']
+  const MENUS = ['status-menu', 'react-menu', 'devices', 'view-menu', 'share-menu', 'board-menu']
   function openMenu(id: string | null) {
     for (const m of MENUS) $(m).hidden = m !== id
     $('btn-react').classList.toggle('on', id === 'react-menu')
@@ -320,6 +328,62 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     if ($('call').hidden) toast('Para compartir pantalla, entrá a una llamada (alfombra de un escritorio).')
     else if (call.sharingScreen) call.stopSharing()
     else toggleMenu('share-menu')
+  }
+  // Compartir → Una pizarra: nueva o una guardada
+  $('btn-share-board').onclick = () => {
+    if (board.activeId) {
+      openMenu(null)
+      call.setView('present')
+      if (!board.presentingState) toast('Ya hay una pizarra abierta en esta llamada.', [], 'board')
+      return
+    }
+    openMenu('board-menu')
+    void renderBoardMenu()
+  }
+  $('btn-board-new').onclick = () => {
+    openMenu(null)
+    board.start(newBoardMeta(), true)
+    call.setView('present')
+  }
+  async function renderBoardMenu() {
+    const box = $('board-list')
+    const note = (t: string) => {
+      const p = document.createElement('p')
+      p.textContent = t
+      box.replaceChildren(p)
+    }
+    note('Cargando…')
+    const list = await listBoards(key)
+    if (list === null) return note('El guardado no está configurado en esta oficina: las pizarras se pueden descargar como imagen.')
+    if (!list.length) return note('Todavía no hay pizarras guardadas.')
+    box.replaceChildren(
+      ...list.map(b => {
+        const row = document.createElement('div')
+        row.className = 'row'
+        const open = document.createElement('button')
+        const who = personById(b.editedBy)?.name.split(' ')[0] ?? b.editedBy
+        const when = new Date(b.editedAt).toLocaleString('es-AR', {day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
+        open.innerHTML = `<i>${icon('board', 18)}</i><span><b></b><small></small></span>`
+        open.querySelector('b')!.textContent = b.title
+        open.querySelector('small')!.textContent = `${who} · ${when}`
+        open.onclick = () => {
+          openMenu(null)
+          board.start({id: b.id, title: b.title})
+          call.setView('present')
+        }
+        const del = document.createElement('button')
+        del.className = 'del'
+        del.title = 'Borrar esta pizarra'
+        del.innerHTML = icon('trash', 16)
+        del.onclick = async () => {
+          if (!confirm(`¿Borrar la pizarra «${b.title}»? No se puede deshacer.`)) return
+          if (await deleteBoard(key, b.id)) void renderBoardMenu()
+          else toast('No se pudo borrar la pizarra.', [], 'board')
+        }
+        row.append(open, del)
+        return row
+      })
+    )
   }
   document.addEventListener('ov:toast', e => {
     const d = (e as CustomEvent<{msg: string; actions?: {label: string; fn: () => void}[]; ic?: string; ms?: number}>).detail
@@ -514,6 +578,8 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     d: [1, 0]
   }
   const keyName = (e: KeyboardEvent) => (e.key.length === 1 ? e.key.toLowerCase() : e.key)
+  let inBoard = false
+  window.addEventListener('pointerdown', e => (inBoard = !!(e.target as HTMLElement).closest?.('.tile.board:not(.compact)')), true)
   window.addEventListener('keydown', e => {
     // Ctrl/Cmd+Shift+A / V funcionan siempre (como en Gather)
     if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey) {
@@ -529,6 +595,8 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
         return
       }
     }
+    // dibujando en la pizarra, las teclas son de la pizarra (V, flechas, Esc…), no de la oficina
+    if (inBoard || (e.target as HTMLElement).closest?.('.tile.board')) return
     if (e.key === 'Escape') {
       if (MENUS.some(m => !$(m).hidden)) openMenu(null)
       else if (!call.exitBig()) setView(null)
@@ -996,6 +1064,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       refreshStatus()
       net.prune(now)
       call.tick()
+      board.sync()
     }
 
     updateCamera(dt)
@@ -1003,7 +1072,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     requestAnimationFrame(step)
   }
 
-  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking, net, call}
+  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking, net, call, board}
 
   /**
    * ¿Con quién estoy lo bastante cerca para charlar? Solo fuera de cubículos y salas, en el mismo
@@ -1041,6 +1110,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       cam: call.sendingVideo,
       screen: call.sharingScreen,
       meeting: status === 'busy' && inMeeting(),
+      board: board.presentingState,
       status
     }
   }
@@ -1054,6 +1124,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       net.prune(now)
       updateTalk()
       call.tick()
+      board.sync()
     }
   }, 1000)
 

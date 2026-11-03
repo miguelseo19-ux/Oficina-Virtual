@@ -18,8 +18,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-    <script type="module" crossorigin src="./assets/index-BD5RrDZ3.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-DhJk1xVQ.css">
+    <script type="module" crossorigin src="./assets/index-BMkAQrVJ.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-D_E2GmRT.css">
   </head>
   <body>
     <!-- Login -->
@@ -176,7 +176,14 @@
             <button data-surface="browser"><i data-icon="tab"></i><span><b>Una pestaña</b><small>Videos, presentaciones, páginas</small></span></button>
             <button data-surface="window"><i data-icon="window"></i><span><b>Una ventana</b><small>Una app o un documento</small></span></button>
             <button data-surface="monitor"><i data-icon="screen"></i><span><b>Toda la pantalla</b><small>Todo lo que ves en el monitor</small></span></button>
+            <button id="btn-share-board"><i data-icon="board"></i><span><b>Una pizarra</b><small>Para dibujar entre todos y guardarla</small></span></button>
             <label id="share-audio-row"><input type="checkbox" id="share-audio"><i data-icon="volume"></i><span><b>Compartir el sonido</b><small id="share-audio-note"></small></span><i class="switch"></i></label>
+          </div>
+          <div id="board-menu" class="menu" hidden>
+            <span class="eyebrow">Pizarra</span>
+            <button id="btn-board-new"><i data-icon="plus"></i><span><b>Nueva pizarra</b><small>En blanco, para dibujar entre todos</small></span></button>
+            <span class="eyebrow">Guardadas</span>
+            <div id="board-list"></div>
           </div>
           <div id="pill">
             <button id="pill-me" title="Tu estado (B)"><span id="me-avatar" class="avatar"></span><i id="me-dot" class="sdot"></i></button>

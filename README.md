@@ -28,6 +28,15 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
   puede achicar con los botones de vista (queda como un cuadro más) y volver a
   agrandar con el botón de pantalla. Quien comparte sigue mostrando su cámara y
   ve un aviso con "Dejar de compartir".
+- **Pizarras**: Compartir → *Una pizarra* (nueva o una guardada). Se abre en
+  grande para todos los de la llamada y todos dibujan a la vez, viendo el cursor
+  y el nombre de cada uno (Excalidraw, gratis y de código abierto; se carga
+  recién al abrir una). Quien la abre le cambia el nombre y la cierra para todos.
+  Se guarda en el Dashboard cada 15 s con cambios, con "Guardar" y al cerrarla;
+  la lista de guardadas está en el mismo menú (se pueden reabrir o borrar).
+  "Descargar" la baja como imagen. Necesita `OFFICE_KEY` en el Dashboard; sin
+  eso se puede dibujar y descargar, pero no guardar. Sin imágenes pegadas (harían
+  pesada la sincronización).
 - **Qué compartir y con sonido**: el botón de compartir abre un menú para elegir
   *una pestaña*, *una ventana* o *toda la pantalla* (el navegador abre su ventana
   con esa opción ya elegida) y si va **con sonido** (se recuerda). El sonido solo

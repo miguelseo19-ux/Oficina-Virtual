@@ -66,6 +66,7 @@ export class Call {
   private screenKind: Surface = 'monitor'
   private screenSentTo = new Set<string>()
   private remoteScreens = new Map<string, MediaStream>()
+  private boardSource: (() => {key: string; el: HTMLElement} | null) | null = null
   private pcs = new Map<string, RTCPeerConnection>() // conexión con cada uno (para notar si se rearmó)
   private screenMuted = new Set<string>() // pantallas de otros que silenciaste (id de la transmisión)
   private shareAudio = pref(LS_SHARE_AUDIO) !== '0'
@@ -307,6 +308,16 @@ export class Call {
   /** ¿Hay una llamada abierta con alguien? */
   get inCall() {
     return !this.panel.hidden
+  }
+
+  /** Con quiénes estoy en llamada ahora (peerIds); vacío si no hay llamada. */
+  get members(): Set<string> {
+    return this.panel.hidden ? new Set() : this.wanted()
+  }
+
+  /** De dónde sale el cuadro de la pizarra abierta en la llamada (board.ts). */
+  setBoard(source: () => {key: string; el: HTMLElement} | null) {
+    this.boardSource = source
   }
 
   /** Con quiénes estoy hablando ahora (sin mí), para la mini ventana. */
@@ -554,8 +565,10 @@ export class Call {
     if (this.panel.hidden) return
     for (const tile of [...this.tiles.children] as HTMLElement[]) {
       if (tile.classList.contains('screen')) continue // el sonido de una pantalla no es alguien hablando
+      const video = tile.querySelector('video')
+      if (!video) continue // la pizarra
       const key = tile.dataset.key!
-      const stream = (tile.querySelector('video') as HTMLVideoElement).srcObject as MediaStream | null
+      const stream = video.srcObject as MediaStream | null
       const muted = tile.classList.contains('muted')
       if (!stream || !stream.getAudioTracks().length) {
         tile.classList.remove('speaking')
@@ -769,15 +782,18 @@ export class Call {
       }
     }
 
-    // Vista: si hay una pantalla compartida que no achicaste, va en grande
-    this.shownScreens = screens.map(s => s.stream.id)
+    // pizarra abierta en esta llamada (board.ts): va en grande como una pantalla compartida
+    const board = this.boardSource?.() ?? null
+
+    // Vista: si hay una pantalla compartida (o una pizarra) que no achicaste, va en grande
+    this.shownScreens = [...screens.map(s => s.stream.id), ...(board ? [board.key] : [])]
     for (const id of [...this.dismissed]) if (!this.shownScreens.includes(id)) this.dismissed.delete(id)
-    this.layout = screens.some(s => !this.dismissed.has(s.stream.id)) ? 'present' : this.view
+    this.layout = this.shownScreens.some(id => !this.dismissed.has(id)) ? 'present' : this.view
     this.panel.dataset.layout = this.layout
     document.body.classList.toggle('call-big', this.layout !== 'side')
     for (const b of document.querySelectorAll<HTMLButtonElement>('#call-views [data-view]')) {
       b.classList.toggle('sel', b.dataset.view === this.layout)
-      if (b.dataset.view === 'present') b.hidden = !screens.length
+      if (b.dataset.view === 'present') b.hidden = !this.shownScreens.length
     }
     this.sharing.hidden = !this.screen
 
@@ -856,6 +872,13 @@ export class Call {
       }
     }
     for (const id of [...this.screenMuted]) if (!this.shownScreens.includes(id)) this.screenMuted.delete(id)
+    if (board) {
+      for (const [k, el] of existing) if (el === board.el) existing.delete(k)
+      board.el.dataset.key = board.key
+      // achicada (al costado o en la grilla) no se dibuja: un botón la abre en grande
+      board.el.classList.toggle('compact', this.layout !== 'present')
+      screenTiles.unshift(board.el)
+    }
     for (const el of existing.values()) {
       const v = el.querySelector('video')
       if (v) v.srcObject = null

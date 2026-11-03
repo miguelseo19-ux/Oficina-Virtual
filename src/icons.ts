@@ -21,6 +21,11 @@ const P: Record<string, string> = {
   'video-off':
     '<path d="M8 6.5h5A2.5 2.5 0 0 1 15.5 9v3.5M15.5 16A2.5 2.5 0 0 1 13 17.5H5.5A2.5 2.5 0 0 1 3 15V9c0-1 .6-1.9 1.5-2.3"/><path d="m15.5 10.6 5-3v8.8l-3.2-1.9M3.5 3.5l17 17"/>',
   smile: '<circle cx="12" cy="12" r="8.5"/><path d="M8.6 14.3c.9 1.4 2 2.1 3.4 2.1s2.5-.7 3.4-2.1M9.2 9.6h.01M14.8 9.6h.01"/>',
+  board: '<rect x="3" y="4" width="18" height="12.5" rx="2"/><path d="M12 16.5V20M8.5 20h7M7 12.5l3-3.5 2.5 2.5L17 7.5"/>',
+  save: '<path d="M5 4.5h11l3 3V18a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 18V4.5Z"/><path d="M8.5 4.5v4.5h6V4.5M8.5 19.5v-5h7v5"/>',
+  download: '<path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14"/>',
+  trash: '<path d="M4.5 7h15M9.5 7V5h5v2M6.5 7l1 12.5h9l1-12.5M10 10.5v6M14 10.5v6"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   tab: '<rect x="3" y="4.5" width="18" height="15" rx="2.6"/><path d="M3 9h18M10.5 9V4.5"/>',
   window: '<rect x="3" y="4.5" width="18" height="15" rx="2.6"/><path d="M3 9h18M6.3 6.8h.01M8.8 6.8h.01"/>',
   volume: '<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4v-5Z"/><path d="M15.5 9a4.2 4.2 0 0 1 0 6M18.2 6.5a7.8 7.8 0 0 1 0 11"/>',

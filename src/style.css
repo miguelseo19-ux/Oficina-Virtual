@@ -384,16 +384,17 @@ code { font-family: var(--mono); background: var(--card); border: 1px solid var(
 #devices select:focus { outline: none; border-color: var(--magenta); }
 
 /* Menú "Compartir": qué se comparte y si va con sonido */
-#share-menu { min-width: 290px; padding: 10px; gap: 2px; }
-#share-menu .eyebrow { color: rgba(2, 0, 3, 0.5); padding: 2px 6px 4px; }
-#share-menu button, #share-audio-row { width: 100%; gap: 12px; padding: 7px 8px; border-radius: 12px; }
-#share-menu i[data-icon] {
+#share-menu, #board-menu { min-width: 290px; padding: 10px; gap: 2px; }
+#share-menu .eyebrow, #board-menu .eyebrow { color: rgba(2, 0, 3, 0.5); padding: 2px 6px 4px; }
+#board-menu .eyebrow + .eyebrow, #board-menu button + .eyebrow { margin-top: 8px; }
+#share-menu button, #share-audio-row, #board-menu button { width: 100%; gap: 12px; padding: 7px 8px; border-radius: 12px; }
+#share-menu i[data-icon], #board-menu i[data-icon] {
   width: 38px; height: 38px; border-radius: 11px; flex: none; display: grid; place-items: center;
   background: rgba(2, 0, 3, 0.05); color: rgba(2, 0, 3, 0.72);
 }
-#share-menu button:hover i[data-icon] { background: var(--magenta); color: #fff; }
-#share-menu b { display: block; font-size: 14px; font-weight: 600; color: #020003; }
-#share-menu small { display: block; margin-top: 1px; font: 500 9.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(2, 0, 3, 0.5); }
+#share-menu button:hover i[data-icon], #board-menu button:hover i[data-icon] { background: var(--magenta); color: #fff; }
+#share-menu b, #board-menu b { display: block; font-size: 14px; font-weight: 600; color: #020003; }
+#share-menu small, #board-menu small { display: block; margin-top: 1px; font: 500 9.5px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(2, 0, 3, 0.5); }
 #share-audio-row {
   display: flex; align-items: center; cursor: pointer; position: relative;
   margin-top: 6px; padding-top: 12px; border-top: 1px solid rgba(2, 0, 3, 0.08); border-radius: 0 0 12px 12px;
@@ -539,3 +540,48 @@ body.call-big #map-ctrl { display: none; }
 }
 
 #settings a { color: var(--fg); text-decoration: underline; text-decoration-color: var(--magenta); }
+
+/* ── Pizarras ─────────────────────────────────────────────── */
+#board-list { display: grid; gap: 2px; max-height: 300px; overflow-y: auto; }
+#board-list .row { display: flex; align-items: center; gap: 4px; }
+#board-list .row > button:first-child { flex: 1; min-width: 0; }
+#board-list .row > button:first-child span { min-width: 0; }
+#board-list .row b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#board-list .del { width: 34px; height: 34px; padding: 0; flex: none; display: grid; place-items: center; color: rgba(2, 0, 3, 0.45); }
+#board-list .del:hover { background: rgba(250, 70, 22, 0.12); color: var(--accent-warm); }
+#board-list p { padding: 4px 8px 6px; margin: 0; font-size: 12px; color: rgba(2, 0, 3, 0.55); }
+
+.tile.board { display: flex; flex-direction: column; background: #fff; color: #020003; border-color: rgba(2, 0, 3, 0.12); }
+.board-bar {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px 6px 12px; flex: none;
+  background: #f6f4f3; border-bottom: 1px solid rgba(2, 0, 3, 0.08); min-width: 0;
+}
+.board-ic { color: var(--magenta); display: grid; place-items: center; flex: none; }
+.board-title {
+  flex: 1 1 120px; min-width: 60px; font: 600 14px var(--sans); color: #020003; background: transparent;
+  border: 1px solid transparent; border-radius: 8px; padding: 5px 7px;
+}
+.board-title:not([readonly]):hover { border-color: rgba(2, 0, 3, 0.12); }
+.board-title:not([readonly]):focus { outline: none; border-color: var(--magenta); background: #fff; }
+.board-who, .board-status { font: 500 10px var(--mono); letter-spacing: 0.1em; text-transform: uppercase; color: rgba(2, 0, 3, 0.5); white-space: nowrap; }
+.board-status:empty { display: none; }
+.board-btn {
+  display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 8px; flex: none;
+  font: 600 12px var(--sans); color: #020003; background: #fff; box-shadow: inset 0 0 0 1px rgba(2, 0, 3, 0.12);
+}
+.board-btn:hover { box-shadow: inset 0 0 0 1px var(--magenta); color: #6e3f20; }
+.board-btn:disabled { opacity: 0.45; pointer-events: none; }
+.board-btn.warn { background: var(--accent-warm); color: #fff; box-shadow: none; }
+.board-btn.warn:hover { filter: brightness(1.08); color: #fff; }
+.board-btn[hidden] { display: none; }
+.board-canvas { flex: 1; min-height: 0; position: relative; }
+.board-host { position: absolute; inset: 0; }
+.board-expand { display: none; }
+/* achicada (al costado / en la grilla): no se dibuja, un botón la abre en grande */
+.tile.board.compact .board-bar > :not(.board-ic):not(.board-title) { display: none; }
+.tile.board.compact .board-canvas { opacity: 0; pointer-events: none; } /* sigue montada (no se pierde nada), pero no se ve */
+.tile.board.compact .board-expand {
+  position: absolute; inset: 44px 0 0; z-index: 2; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  font: 600 13px var(--sans); color: #6e3f20; background: #fff;
+}
+.tile.board.compact .board-expand:hover { background: #faf6f3; }

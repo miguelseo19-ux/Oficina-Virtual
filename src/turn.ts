@@ -21,7 +21,11 @@ export interface TurnInfo {
 
 const TIMEOUT_MS = 4000
 
-export async function turnProof(key: string): Promise<string> {
+/**
+ * Prueba de que conocés la clave de la oficina (sin mandarla): la piden las rutas del Dashboard
+ * (servidor de respaldo, pizarras) en el header `x-office-proof`.
+ */
+export async function officeProof(key: string): Promise<string> {
   const data = new TextEncoder().encode(`oficina-virtual:turn:${key}`)
   const hash = await crypto.subtle.digest('SHA-256', data)
   return [...new Uint8Array(hash)].map(b => b.toString(16).padStart(2, '0')).join('')
@@ -38,7 +42,7 @@ export async function loadTurn(key: string): Promise<TurnInfo> {
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS)
   try {
     const r = await fetch('/api/office/turn', {
-      headers: {'x-office-proof': await turnProof(key)},
+      headers: {'x-office-proof': await officeProof(key)},
       cache: 'no-store',
       credentials: 'same-origin',
       signal: ctrl.signal
