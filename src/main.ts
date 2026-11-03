@@ -982,10 +982,12 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
   let lastSlow = 0
   const lastPos = {x: pos.x, y: pos.y}
 
-  function step(now: number) {
-    const dt = Math.min(0.05, (now - lastT) / 1000)
-    lastT = now
-
+  /**
+   * Mueve el avatar `dt` segundos: con las teclas o siguiendo el camino de un clic / "ir a".
+   * Con la pestaña oculta el navegador pausa el dibujo (requestAnimationFrame), así que el latido
+   * de segundo plano lo llama en pasos cortos para que una caminata en curso siga y llegue.
+   */
+  function move(dt: number) {
     let dx = 0
     let dy = 0
     for (const k of keys) {
@@ -1020,7 +1022,10 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
         myDir = dirOf(pos.x - ox, pos.y - oy)
       }
     }
+  }
 
+  /** Lo que depende de dónde quedó el avatar: cámara, zona (llamada), charla y aviso a los demás. */
+  function afterMove(now: number) {
     // si el avatar se movió (caminando, con "ir a" o al escritorio), la cámara lo vuelve a seguir
     if (pos.x !== lastPos.x || pos.y !== lastPos.y) {
       lastPos.x = pos.x
@@ -1050,12 +1055,29 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     }
 
     net.update(myState(), now)
+  }
 
-    // interpolación de los demás
+  function step(now: number) {
+    const dt = Math.min(0.05, (now - lastT) / 1000)
+    lastT = now
+    move(dt)
+    afterMove(now)
+
+    // interpolación de los demás. Si avisan de a ratos (su pestaña está oculta y el navegador deja
+    // un latido por segundo), caminan parejo hacia el último punto en vez de avanzar a saltos.
     const k = 1 - Math.pow(0.0001, dt)
     for (const p of net.players.values()) {
-      p.rx += (p.x - p.rx) * k
-      p.ry += (p.y - p.ry) * k
+      const ex = p.x - p.rx
+      const ey = p.y - p.ry
+      const d = Math.hypot(ex, ey)
+      if (p.gap > 400 && d > 0 && d < SPEED * 2) {
+        const s = Math.min(d, SPEED * 1.1 * dt)
+        p.rx += (ex / d) * s
+        p.ry += (ey / d) * s
+      } else {
+        p.rx += ex * k
+        p.ry += ey * k
+      }
     }
 
     if (now - lastSlow > 1000) {
@@ -1072,7 +1094,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     requestAnimationFrame(step)
   }
 
-  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking, net, call, board}
+  if (DEBUG) (window as unknown as {__ov: unknown}).__ov = {pos, zone: () => currentZone, talking, net, call, board, walkTo}
 
   /**
    * ¿Con quién estoy lo bastante cerca para charlar? Solo fuera de cubículos y salas, en el mismo
@@ -1115,11 +1137,21 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     }
   }
 
-  // latido aunque la pestaña esté en segundo plano (rAF se pausa ahí)
+  // latido aunque la pestaña esté en segundo plano (rAF se pausa ahí): sigue la caminata en curso,
+  // en pasos cortos (para no atravesar paredes) por todo el tiempo que pasó desde el último
+  // (el navegador espacia estos latidos: 1 s, o más si la pestaña lleva mucho oculta)
   setInterval(() => {
     if (document.hidden) {
       const now = performance.now()
-      net.update(myState(), now)
+      let left = Math.min(120, (now - lastT) / 1000)
+      lastT = now
+      while (left > 0 && route.length) {
+        const d = Math.min(0.05, left)
+        move(d)
+        left -= d
+      }
+      moving = false
+      afterMove(now)
       refreshStatus()
       net.prune(now)
       updateTalk()

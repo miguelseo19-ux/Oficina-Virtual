@@ -32,6 +32,8 @@ export type RemotePlayer = PlayerState & {
   rx: number
   ry: number
   lastSeen: number
+  /** ms desde el aviso anterior (≈80 con la pestaña a la vista; ≈1000 si está oculta) */
+  gap: number
 }
 
 type Room = ReturnType<typeof joinRoom>
@@ -158,7 +160,8 @@ export class Net {
       peerId,
       rx: prev?.rx ?? s.x,
       ry: prev?.ry ?? s.y,
-      lastSeen: performance.now()
+      lastSeen: performance.now(),
+      gap: prev ? performance.now() - prev.lastSeen : 0
     }
     this.players.set(peerId, p)
     this.ev.onPlayer(p, prev?.zone)
