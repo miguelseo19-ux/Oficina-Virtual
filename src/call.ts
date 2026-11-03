@@ -24,10 +24,19 @@ const PROFILES: Record<Profile, {w: number; h: number; fps: number; kbps: number
   media: {w: 480, h: 270, fps: 20, kbps: 500},
   baja: {w: 384, h: 216, fps: 15, kbps: 300}
 }
-function pickProfile(pref: QualityPref, others: number): Profile {
+function pickProfile(pref: QualityPref, others: number, sharing: boolean): Profile {
   if (pref !== 'auto') return pref
+  // compartiendo pantalla, la cámara pasa a segundo plano: así la compu (que codifica todo una vez
+  // por persona) prioriza que la pantalla vaya fluida
+  if (sharing) return 'baja'
   return others <= 2 ? 'alta' : others <= 4 ? 'media' : 'baja'
 }
+/**
+ * Tope de la pantalla compartida: 1080p a 30 cuadros. Sin tope, Chrome toma la resolución real
+ * (en una Mac Retina o un monitor 4K, 3000-5000 px de ancho) y codificarla una vez por persona
+ * satura la compu: la pantalla va a saltos y se traba toda la llamada.
+ */
+const SCREEN_MAX = {width: {max: 1920}, height: {max: 1080}, frameRate: {max: 30}}
 /** La pantalla compartida mantiene la resolución (que el texto se lea) y se le limita la velocidad. */
 function screenKbps(pref: QualityPref, others: number) {
   if (pref === 'baja') return 800
@@ -537,9 +546,9 @@ export class Call {
    */
   private applyQuality(others: number) {
     this.others = others
-    const next = pickProfile(this.qualityPref, others)
+    const next = pickProfile(this.qualityPref, others, !!this.screen)
     if (next !== this.profile) {
-      netLog(`Calidad de cámara: ${next} (${others + 1} en la llamada${this.qualityPref === 'auto' ? '' : ', elegida a mano'})`)
+      netLog(`Calidad de cámara: ${next} (${others + 1} en la llamada${this.qualityPref === 'auto' ? (this.screen ? ', compartiendo pantalla' : '') : ', elegida a mano'})`)
       this.profile = next
       this.constrained = null
     }
@@ -735,7 +744,7 @@ export class Call {
     const wantAudio = canShareAudio && this.shareAudio
     const options = (audio: boolean) =>
       ({
-        video: {displaySurface: surface, frameRate: {ideal: 30}},
+        video: {displaySurface: surface, ...SCREEN_MAX, frameRate: {ideal: 30, max: 30}},
         // sonido tal cual (sin filtros de voz) y sin la propia oficina, para que no vuelva el eco de la llamada
         audio: audio ? {echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true} : false,
         selfBrowserSurface: 'exclude', // no ofrecer la pestaña de la oficina (efecto espejo)
@@ -762,13 +771,15 @@ export class Call {
       return
     }
     const audio = s.getAudioTracks()[0]
-    const chosen = (track.getSettings() as {displaySurface?: string}).displaySurface
+    const got = track.getSettings()
+    if ((got.width ?? 0) > 1920 || (got.height ?? 0) > 1080) void track.applyConstraints(SCREEN_MAX).catch(() => {}) // por si el navegador ignoró el tope
+    const chosen = (got as {displaySurface?: string}).displaySurface
     this.screenKind = chosen === 'browser' || chosen === 'window' || chosen === 'monitor' ? chosen : surface
     // con sonido suele ser un video: priorizar que se mueva fluido; sin sonido, que el texto se lea nítido
     track.contentHint = audio ? 'motion' : 'detail'
     this.screen = s
     this.dismissed.add(s.id) // "Tu pantalla" arranca achicada: para vos no hace falta en grande
-    netLog(`Comparto ${SURFACE_TEXT[this.screenKind]} (${audio ? 'con' : 'sin'} sonido) con ${this.screenSentTo.size + this.wanted().size} personas`)
+    netLog(`Comparto ${SURFACE_TEXT[this.screenKind]} (${audio ? 'con' : 'sin'} sonido, ${got.width ?? '?'}×${got.height ?? '?'}${(got.width ?? 0) > 1920 || (got.height ?? 0) > 1080 ? ' → tope 1080p' : ''}) con ${this.screenSentTo.size + this.wanted().size} personas`)
     track.onended = () => this.stopScreen(true) // "Dejar de compartir" del navegador
     this.btnScreen.classList.add('on')
     this.updateSharingBar()
