@@ -1,10 +1,23 @@
 import {initials, personById} from './config'
+import {icon} from './icons'
 import type {Net, RemotePlayer, Status} from './net'
 
 const LS_CAM = 'ov.dev.cam'
 const LS_MIC = 'ov.dev.mic'
 const LS_SPK = 'ov.dev.spk'
 const LS_VIEW = 'ov.llamada.vista'
+const LS_SHARE_AUDIO = 'ov.compartir.sonido'
+/** Qué se comparte: una pestaña del navegador, una ventana o toda la pantalla (nombres de getDisplayMedia). */
+type Surface = 'browser' | 'window' | 'monitor'
+const SURFACE_TEXT: Record<Surface, string> = {browser: 'una pestaña', window: 'una ventana', monitor: 'toda tu pantalla'}
+
+/**
+ * Sonido al compartir: solo Chrome y Edge lo mandan. El de una pestaña anda en todas las compus;
+ * el de toda la pantalla (sonido del sistema), en Windows y ChromeOS. Safari y Firefox no comparten sonido.
+ */
+const uaData = (navigator as Navigator & {userAgentData?: {brands?: {brand: string}[]; platform?: string}}).userAgentData
+const canShareAudio = !!uaData?.brands?.some(b => /Chromium|Google Chrome|Microsoft Edge/.test(b.brand))
+const systemAudio = canShareAudio && /Windows|Chrome OS|ChromeOS/i.test(uaData?.platform ?? '')
 /** Cómo se ve la llamada: al costado de la oficina, en grande encima de ella, o la pantalla compartida en grande. */
 type Layout = 'side' | 'grid' | 'present'
 function pref(k: string) {
@@ -25,6 +38,11 @@ const AUDIO_BASE = {echoCancellation: true, noiseSuppression: true}
 const VIDEO_BASE = {width: {ideal: 640}, height: {ideal: 360}, frameRate: {ideal: 24}}
 const canPickSpeaker = 'setSinkId' in HTMLMediaElement.prototype
 
+/** Aviso abajo en la oficina (los muestra main.ts). */
+function say(msg: string, actions: {label: string; fn: () => void}[] = []) {
+  document.dispatchEvent(new CustomEvent('ov:toast', {detail: {msg, actions, ic: 'screen', ms: 14000}}))
+}
+
 /**
  * Videollamada por proximidad.
  * - Dentro de un cubículo o una sala: se ven y escuchan todos los que están en esa zona.
@@ -44,8 +62,11 @@ export class Call {
   private sentTo = new Set<string>()
   private remote = new Map<string, MediaStream>()
   private screen: MediaStream | null = null // mi pantalla compartida
+  private screenKind: Surface = 'monitor'
   private screenSentTo = new Set<string>()
   private remoteScreens = new Map<string, MediaStream>()
+  private screenMuted = new Set<string>() // pantallas de otros que silenciaste (id de la transmisión)
+  private shareAudio = pref(LS_SHARE_AUDIO) !== '0'
   private camTrack: MediaStreamTrack | null = null
   private view: 'side' | 'grid' = pref(LS_VIEW) === 'grid' ? 'grid' : 'side'
   private layout: Layout = 'side'
@@ -62,6 +83,8 @@ export class Call {
   private btnMic = document.getElementById('btn-mic') as HTMLButtonElement
   private btnCam = document.getElementById('btn-cam') as HTMLButtonElement
   private btnScreen = document.getElementById('btn-screen') as HTMLButtonElement
+  private shareWhat = document.getElementById('share-what')!
+  private btnShareSound = document.getElementById('btn-share-sound') as HTMLButtonElement
   private notice = document.getElementById('call-notice')!
   private hint = document.getElementById('call-hint')!
   private devPanel = document.getElementById('devices')!
@@ -87,11 +110,30 @@ export class Call {
     setInterval(() => this.updateSpeaking(), 100)
     this.btnMic.onclick = () => this.toggleMic()
     this.btnCam.onclick = () => this.toggleCam()
-    this.btnScreen.onclick = () => void this.toggleScreen()
     for (const b of document.querySelectorAll<HTMLButtonElement>('#call-views [data-view]')) {
       b.onclick = () => this.setView(b.dataset.view as Layout)
     }
     document.getElementById('btn-stop-share')!.onclick = () => this.stopScreen(true)
+    this.btnShareSound.onclick = () => this.toggleShareSound()
+    // menú "Compartir": qué (pestaña / ventana / pantalla) y si va con sonido
+    for (const b of document.querySelectorAll<HTMLButtonElement>('#share-menu [data-surface]')) {
+      b.onclick = () => {
+        document.dispatchEvent(new CustomEvent('ov:menu', {detail: null}))
+        void this.startScreen(b.dataset.surface as Surface)
+      }
+    }
+    const audioBox = document.getElementById('share-audio') as HTMLInputElement
+    audioBox.checked = canShareAudio && this.shareAudio
+    audioBox.disabled = !canShareAudio
+    audioBox.onchange = () => {
+      this.shareAudio = audioBox.checked
+      savePref(LS_SHARE_AUDIO, this.shareAudio ? '1' : '0')
+    }
+    document.getElementById('share-audio-note')!.textContent = !canShareAudio
+      ? 'Tu navegador no lo permite: usá Chrome o Edge'
+      : systemAudio
+        ? 'De una pestaña o de toda la pantalla'
+        : 'Anda siempre desde una pestaña'
     new ResizeObserver(() => this.fitGrid()).observe(this.tiles)
     for (const b of document.querySelectorAll<HTMLElement>('[data-open-devices]')) {
       b.addEventListener('click', e => {
@@ -213,7 +255,7 @@ export class Call {
   private setSpeaker(id: string) {
     this.spkId = id
     savePref(LS_SPK, id)
-    for (const v of this.tiles.querySelectorAll<HTMLVideoElement>('.tile:not(.self) video')) this.applySink(v)
+    for (const v of this.panel.querySelectorAll<HTMLVideoElement>('.tile:not(.self) video')) this.applySink(v)
   }
 
   private applySink(v: HTMLVideoElement) {
@@ -426,6 +468,8 @@ export class Call {
   onRemoteStream(stream: MediaStream, peerId: string, meta?: unknown) {
     if ((meta as {screen?: boolean} | undefined)?.screen === true) this.remoteScreens.set(peerId, stream)
     else this.remote.set(peerId, stream)
+    // video y sonido llegan por separado a la misma transmisión: redibujar cuando entra o sale una pista
+    stream.onaddtrack = stream.onremovetrack = () => this.reconcile()
     this.reconcile()
   }
 
@@ -461,6 +505,7 @@ export class Call {
       this.releaseTimer = null
     }
     this.releaseMedia()
+    if (!document.getElementById('share-menu')!.hidden) document.dispatchEvent(new CustomEvent('ov:menu', {detail: null}))
     this.panel.hidden = true
     this.tiles.replaceChildren()
     this.screensBox.replaceChildren()
@@ -484,6 +529,7 @@ export class Call {
   private updateSpeaking() {
     if (this.panel.hidden) return
     for (const tile of [...this.tiles.children] as HTMLElement[]) {
+      if (tile.classList.contains('screen')) continue // el sonido de una pantalla no es alguien hablando
       const key = tile.dataset.key!
       const stream = (tile.querySelector('video') as HTMLVideoElement).srcObject as MediaStream | null
       const muted = tile.classList.contains('muted')
@@ -537,24 +583,100 @@ export class Call {
     this.btnCam.dataset.tip = this.camOn ? 'Apagar cámara · V' : 'Encender cámara · V'
   }
 
-  async toggleScreen() {
-    if (this.screen) return this.stopScreen(true)
-    if (!this.local) return
-    let s: MediaStream
-    try {
-      s = await navigator.mediaDevices.getDisplayMedia({video: true, audio: false})
-    } catch {
+  /** Deja de compartir (si estás compartiendo). Para empezar se elige qué en el menú "Compartir". */
+  stopSharing() {
+    this.stopScreen(true)
+  }
+
+  /**
+   * Comparte una pestaña, una ventana o toda la pantalla. `surface` solo preselecciona esa opción en
+   * la ventana del navegador (Chrome y Edge; Safari y Firefox muestran la suya); lo que se terminó
+   * eligiendo sale de la pista. Tiene que llamarse desde un clic.
+   */
+  async startScreen(surface: Surface) {
+    if (this.screen || !this.local) return
+    if (!navigator.mediaDevices?.getDisplayMedia) {
+      say('Este navegador no permite compartir pantalla. Probá con Chrome o Edge en la compu.')
       return
     }
+    const wantAudio = canShareAudio && this.shareAudio
+    const options = (audio: boolean) =>
+      ({
+        video: {displaySurface: surface, frameRate: {ideal: 30}},
+        // sonido tal cual (sin filtros de voz) y sin la propia oficina, para que no vuelva el eco de la llamada
+        audio: audio ? {echoCancellation: false, noiseSuppression: false, autoGainControl: false, restrictOwnAudio: true} : false,
+        selfBrowserSurface: 'exclude', // no ofrecer la pestaña de la oficina (efecto espejo)
+        surfaceSwitching: 'include', // Chrome: "Compartir esta pestaña" para cambiar sin cortar
+        systemAudio: 'include',
+        monitorTypeSurfaces: 'include',
+        preferCurrentTab: false
+      }) as DisplayMediaStreamOptions
+    let s: MediaStream
+    try {
+      s = await navigator.mediaDevices.getDisplayMedia(options(wantAudio))
+    } catch (e) {
+      // cancelaste la ventana del navegador o no diste permiso: no se hace nada
+      if (!wantAudio || !(e instanceof TypeError || (e as DOMException)?.name === 'NotSupportedError')) return
+      try {
+        s = await navigator.mediaDevices.getDisplayMedia(options(false))
+      } catch {
+        return
+      }
+    }
     const track = s.getVideoTracks()[0]
-    if (!this.local || !track) {
+    if (!this.local || !track || this.screen) {
       s.getTracks().forEach(t => t.stop())
       return
     }
+    const audio = s.getAudioTracks()[0]
+    const chosen = (track.getSettings() as {displaySurface?: string}).displaySurface
+    this.screenKind = chosen === 'browser' || chosen === 'window' || chosen === 'monitor' ? chosen : surface
+    // con sonido suele ser un video: priorizar que se mueva fluido; sin sonido, que el texto se lea nítido
+    track.contentHint = audio ? 'motion' : 'detail'
     this.screen = s
     track.onended = () => this.stopScreen(true) // "Dejar de compartir" del navegador
     this.btnScreen.classList.add('on')
+    this.updateSharingBar()
+    if (wantAudio && !audio) {
+      const tab = this.screenKind === 'browser'
+      say(
+        tab
+          ? 'Compartís sin sonido: para incluirlo, volvé a compartir y dejá tildado «Compartir también el audio de la pestaña».'
+          : `Compartís ${SURFACE_TEXT[this.screenKind]} sin sonido: en esta compu el sonido solo se puede compartir desde una pestaña.`,
+        tab
+          ? []
+          : [
+              {
+                label: 'Compartir una pestaña',
+                fn: () => {
+                  this.stopScreen(true)
+                  void this.startScreen('browser') // sigue dentro del clic: el navegador lo permite
+                }
+              }
+            ]
+      )
+    }
     this.reconcile() // se la manda a todos los de la llamada
+  }
+
+  /** Pausa o vuelve a mandar el sonido de lo que compartís (sin dejar de compartir la imagen). */
+  private toggleShareSound() {
+    const a = this.screen?.getAudioTracks()[0]
+    if (!a) return
+    a.enabled = !a.enabled
+    this.updateSharingBar()
+  }
+
+  private updateSharingBar() {
+    const a = this.screen?.getAudioTracks()[0]
+    const sound = !a ? 'sin sonido' : a.enabled ? 'con sonido' : 'sonido en pausa'
+    this.shareWhat.textContent = `Compartís ${SURFACE_TEXT[this.screenKind]} · ${sound}`
+    this.btnShareSound.hidden = !a
+    if (a) {
+      this.btnShareSound.innerHTML = icon(a.enabled ? 'volume' : 'volume-off', 16)
+      this.btnShareSound.title = a.enabled ? 'Pausar el sonido que compartís' : 'Volver a mandar el sonido'
+      this.btnShareSound.classList.toggle('off', !a.enabled)
+    }
   }
 
   /** Deja de compartir. `update`: refrescar la llamada (no hace falta al cortarla). */
@@ -679,9 +801,35 @@ export class Call {
       t.classList.add('screen')
       t.querySelector('.label')!.textContent = s.name
       const video = t.querySelector('video')!
-      video.muted = true
+      // si comparte con sonido, se escucha (por el parlante elegido); cada uno lo puede silenciar
+      const id = s.stream.id
+      const hasSound = s.stream.getAudioTracks().some(tr => tr.readyState === 'live')
+      const muted = this.screenMuted.has(id)
+      video.muted = !hasSound || muted
       setStream(video, s.stream)
+      this.applySink(video)
+      let snd = t.querySelector<HTMLButtonElement>('.tile-snd')
+      if (hasSound && !snd) {
+        snd = document.createElement('button')
+        snd.className = 'tile-snd'
+        t.append(snd)
+      } else if (!hasSound && snd) {
+        snd.remove()
+        snd = null
+      }
+      if (snd && snd.dataset.muted !== String(muted)) {
+        snd.dataset.muted = String(muted)
+        snd.innerHTML = icon(muted ? 'volume-off' : 'volume', 16)
+        snd.title = muted ? 'Escuchar el sonido de la pantalla' : 'Silenciar el sonido de la pantalla'
+        snd.classList.toggle('off', muted)
+        snd.onclick = () => {
+          if (muted) this.screenMuted.delete(id)
+          else this.screenMuted.add(id)
+          this.reconcile()
+        }
+      }
     }
+    for (const id of [...this.screenMuted]) if (!this.shownScreens.includes(id)) this.screenMuted.delete(id)
     for (const el of existing.values()) {
       const v = el.querySelector('video')
       if (v) v.srcObject = null

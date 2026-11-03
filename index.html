@@ -165,6 +165,13 @@
             <label>Micrófono <select id="sel-mic"></select></label>
             <label id="spk-row">Parlante / auriculares <select id="sel-spk"></select></label>
           </div>
+          <div id="share-menu" class="menu" hidden>
+            <span class="eyebrow">Compartir</span>
+            <button data-surface="browser"><i data-icon="tab"></i><span><b>Una pestaña</b><small>Videos, presentaciones, páginas</small></span></button>
+            <button data-surface="window"><i data-icon="window"></i><span><b>Una ventana</b><small>Una app o un documento</small></span></button>
+            <button data-surface="monitor"><i data-icon="screen"></i><span><b>Toda la pantalla</b><small>Todo lo que ves en el monitor</small></span></button>
+            <label id="share-audio-row"><input type="checkbox" id="share-audio"><i data-icon="volume"></i><span><b>Compartir el sonido</b><small id="share-audio-note"></small></span><i class="switch"></i></label>
+          </div>
           <div id="pill">
             <button id="pill-me" title="Tu estado (B)"><span id="me-avatar" class="avatar"></span><i id="me-dot" class="sdot"></i></button>
             <span class="sep"></span>
@@ -216,7 +223,7 @@
             <button data-view="present" title="Pantalla compartida en grande" hidden><i data-icon="screen" data-size="18"></i></button>
           </div>
         </header>
-        <div id="call-sharing" hidden><i class="pulse"></i><span>Estás compartiendo tu pantalla</span><button id="btn-stop-share">Dejar de compartir</button></div>
+        <div id="call-sharing" hidden><i class="pulse"></i><span id="share-what">Estás compartiendo tu pantalla</span><button id="btn-share-sound" hidden></button><button id="btn-stop-share">Dejar de compartir</button></div>
         <div id="call-body">
           <div id="screens"></div>
           <div id="tiles"></div>

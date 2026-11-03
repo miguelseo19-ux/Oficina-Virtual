@@ -294,7 +294,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
   $('side-collapse').onclick = () => setView(null)
 
   // ── menús de la burbuja (estado / reacciones / dispositivos) ──
-  const MENUS = ['status-menu', 'react-menu', 'devices', 'view-menu']
+  const MENUS = ['status-menu', 'react-menu', 'devices', 'view-menu', 'share-menu']
   function openMenu(id: string | null) {
     for (const m of MENUS) $(m).hidden = m !== id
     $('btn-react').classList.toggle('on', id === 'react-menu')
@@ -308,10 +308,16 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
   $('pill-me').onclick = () => toggleMenu('status-menu')
   $('btn-react').onclick = () => toggleMenu('react-menu')
   $('btn-nearby').onclick = () => chat.open('nearby')
+  // compartir: primero se elige qué (pestaña, ventana o pantalla) y si va con sonido
   $('btn-screen').onclick = () => {
     if ($('call').hidden) toast('Para compartir pantalla, entrá a una llamada (alfombra de un escritorio).')
-    else void call.toggleScreen()
+    else if (call.sharingScreen) call.stopSharing()
+    else toggleMenu('share-menu')
   }
+  document.addEventListener('ov:toast', e => {
+    const d = (e as CustomEvent<{msg: string; actions?: {label: string; fn: () => void}[]; ic?: string; ms?: number}>).detail
+    toast(d.msg, d.actions ?? [], d.ic ?? 'info', d.ms)
+  })
   $('btn-open-devices').onclick = () => call.openDevices(true)
 
   // ── reacciones ──

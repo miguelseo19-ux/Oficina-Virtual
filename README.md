@@ -28,6 +28,13 @@ Oficina 2D estilo Gather para el equipo (hasta 12 personas):
   puede achicar con los botones de vista (queda como un cuadro más) y volver a
   agrandar con el botón de pantalla. Quien comparte sigue mostrando su cámara y
   ve un aviso con "Dejar de compartir".
+- **Qué compartir y con sonido**: el botón de compartir abre un menú para elegir
+  *una pestaña*, *una ventana* o *toda la pantalla* (el navegador abre su ventana
+  con esa opción ya elegida) y si va **con sonido** (se recuerda). El sonido solo
+  lo mandan Chrome y Edge: el de una pestaña anda en cualquier compu; el de toda
+  la pantalla, en Windows. Si se pidió y no vino, avisa y ofrece compartir una
+  pestaña. Quien comparte puede pausar el sonido sin cortar la imagen, y cada uno
+  puede silenciar el sonido de una pantalla ajena (botón en el cuadro).
 - El video de quien está hablando se resalta en verde.
 - Botón ⚙️ en la llamada para elegir **cámara, micrófono y parlante/auriculares**
   (se puede cambiar en plena conversación y queda guardado para la próxima vez;
