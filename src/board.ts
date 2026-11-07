@@ -1,4 +1,4 @@
-import {personById, type Person} from './config'
+import {personById, shortName, type Person} from './config'
 import {netLog} from './diag'
 import {icon} from './icons'
 import type {Net} from './net'
@@ -423,7 +423,7 @@ export class BoardController {
     this.view?.setPeers(
       [...this.peers].map(([id, p]) => {
         const person = personById(this.net.players.get(id)?.person ?? '')
-        return {id, name: person?.name.split(' ')[0] ?? 'Invitado', color: person?.color ?? '#888', ...p}
+        return {id, name: person ? shortName(person) : 'Invitado', color: person?.color ?? '#888', ...p}
       })
     )
   }
@@ -484,7 +484,7 @@ export class BoardController {
     this.titleInput.readOnly = !mine
     this.titleInput.title = mine ? 'Cambiar el nombre' : b.title
     const p = mine ? null : personById(this.net.players.get(b.presenter)?.person ?? '')
-    this.who.textContent = mine ? 'la presentás vos' : `de ${p?.name.split(' ')[0] ?? 'otra persona'}`
+    this.who.textContent = mine ? 'la presentás vos' : `de ${p ? shortName(p) : 'otra persona'}`
     this.btnClose.hidden = !mine
     this.renderStatus()
   }

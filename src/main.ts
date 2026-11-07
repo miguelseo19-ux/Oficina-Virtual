@@ -1,5 +1,5 @@
 import './style.css'
-import {deskOwner, initials, PEOPLE, personById, type Person} from './config'
+import {deskOwner, initials, PEOPLE, personById, shortName, type Person} from './config'
 import {AREAS, ART, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
 import {buildScene} from './scene'
 import {drawSimpleMap} from './scene/simple'
@@ -109,7 +109,7 @@ function setupLogin() {
   for (const p of PEOPLE) {
     const o = document.createElement('option')
     o.value = p.id
-    o.textContent = `${p.name} — ${p.role}`
+    o.textContent = p.role ? `${p.name} — ${p.role}` : p.name
     sel.appendChild(o)
   }
   const savedUser = lsGet(LS_USER)
@@ -372,7 +372,8 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
         const row = document.createElement('div')
         row.className = 'row'
         const open = document.createElement('button')
-        const who = personById(b.editedBy)?.name.split(' ')[0] ?? b.editedBy
+        const editor = personById(b.editedBy)
+        const who = editor ? shortName(editor) : 'alguien'
         const when = new Date(b.editedAt).toLocaleString('es-AR', {day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23'})
         open.innerHTML = `<i>${icon('board', 18)}</i><span><b></b><small></small></span>`
         open.querySelector('b')!.textContent = b.title
@@ -1499,11 +1500,14 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     ctx.font = `700 13px ${SANS}`
     spaced(-0.2)
     ctx.fillStyle = owner ? C.text : C.subtle
-    ctx.fillText(name, d.plate.x, y + 16)
-    ctx.font = `500 9px ${MONO}`
-    spaced(1.6)
-    ctx.fillStyle = owner ? C.muted : C.subtle
-    ctx.fillText(role, d.plate.x + 0.8, y + 29)
+    // sin cargo aparte (un puesto sin persona todavía: el nombre ya es el cargo), una sola línea centrada
+    ctx.fillText(name, d.plate.x, role ? y + 16 : y + 22.5)
+    if (role) {
+      ctx.font = `500 9px ${MONO}`
+      spaced(1.6)
+      ctx.fillStyle = owner ? C.muted : C.subtle
+      ctx.fillText(role, d.plate.x + 0.8, y + 29)
+    }
     spaced(0)
   }
 
@@ -1553,7 +1557,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     ctx.drawImage(sheet, sx, row * fr.h, fr.w, fr.h, Math.round(x - w / 2), Math.round(feet - h), w, h)
     ctx.imageSmoothingEnabled = true
     // etiqueta con el nombre y el estado
-    const name = (self ? 'Vos' : (p?.name.split(' ')[0] ?? 'Invitado')).toUpperCase()
+    const name = (self ? 'Vos' : p ? shortName(p) : 'Invitado').toUpperCase()
     ctx.font = `500 9px ${MONO}`
     spaced(1.4)
     const tw = ctx.measureText(name).width + 26
@@ -1617,7 +1621,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     ctx.font = `700 12px ${SANS}`
     ctx.fillText(initials(p?.name ?? '?'), x, y - bob + 4)
     // etiqueta con el nombre (vidrio oscuro)
-    const name = (self ? 'Vos' : (p?.name.split(' ')[0] ?? 'Invitado')).toUpperCase()
+    const name = (self ? 'Vos' : p ? shortName(p) : 'Invitado').toUpperCase()
     ctx.font = `500 9px ${MONO}`
     spaced(1.4)
     const w = ctx.measureText(name).width + 16

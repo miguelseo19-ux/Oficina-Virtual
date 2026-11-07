@@ -1,4 +1,4 @@
-import {initials, personById, type Person} from './config'
+import {initials, personById, shortName, type Person} from './config'
 import type {Call} from './call'
 import {icon} from './icons'
 import {PX, WORLD} from './map'
@@ -215,7 +215,7 @@ export class MiniWindow {
     let alert = ''
     let live = false
     if (peers.length) {
-      alert = `En llamada con ${list(peers.map(p => first(p.name)))}`
+      alert = `En llamada con ${list(peers.map(p => p.short))}`
       live = true
     } else {
       const myZone = this.d.zone()
@@ -266,7 +266,7 @@ export class MiniWindow {
       const ph = t.querySelector('.ph') as HTMLElement
       ph.textContent = initials(p.name)
       ph.style.background = p.color
-      t.querySelector('.nm')!.textContent = first(p.name)
+      t.querySelector('.nm')!.textContent = p.short
       const hasVideo = p.cam && !!p.stream?.getVideoTracks().some(tr => tr.readyState === 'live')
       t.classList.toggle('novideo', !hasVideo)
       t.classList.toggle('speaking', p.speaking)
@@ -400,7 +400,7 @@ export class MiniWindow {
       ctx.lineWidth = 1.2
       ctx.stroke()
       // nombre
-      const name = (o.self ? 'Vos' : first(p?.name ?? 'Invitado')).toUpperCase()
+      const name = (o.self ? 'Vos' : (p ? shortName(p) : 'Invitado')).toUpperCase()
       ctx.font = `500 8px ${MONO}`
       const tw = ctx.measureText(name).width + 10
       const ty = y - r - 17
@@ -415,8 +415,10 @@ export class MiniWindow {
   }
 }
 
-const first = (name: string) => name.split(' ')[0]
-const nameOf = (p: RemotePlayer) => first(personById(p.person)?.name ?? 'Alguien')
+const nameOf = (p: RemotePlayer) => {
+  const person = personById(p.person)
+  return person ? shortName(person) : 'Alguien'
+}
 function list(names: string[]) {
   return names.length > 1 ? `${names.slice(0, -1).join(', ')} y ${names[names.length - 1]}` : names[0]
 }

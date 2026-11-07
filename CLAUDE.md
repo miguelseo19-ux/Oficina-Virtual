@@ -1,6 +1,6 @@
 # Oficina virtual — contexto para Claude Code
 
-Oficina 2D estilo Gather para un equipo chico (6 personas hoy, 12 escritorios).
+Oficina 2D estilo Gather para un equipo chico (5 personas y el puesto de Project Manager sin asignar, 12 escritorios).
 Todo el texto de la app y los mensajes al usuario van **en español rioplatense**.
 
 ## Cómo funciona
@@ -48,7 +48,7 @@ Todo el texto de la app y los mensajes al usuario van **en español rioplatense*
 ## Archivos clave
 | Archivo | Qué hace |
 |---|---|
-| `src/config.ts` | Personas (nombre, cargo, color, escritorio, `sprite`), relays, TURN |
+| `src/config.ts` | Personas (nombre, cargo, color, escritorio, `sprite`, `short`), relays, TURN. Nombre corto en carteles/avisos/chat = `shortName(p)` (primer nombre o `short`). Puesto sin persona todavía (hoy `pm`, escritorio 4): `name` = el cargo, `role` vacío (el cartel queda en una línea), `sprite: 'Blanco'` (silueta neutra en `public/assets/personajes/Blanco.png`, sacada de Adam de LimeZu) |
 | `src/map.ts` | **Fuente de verdad** de la geometría en "píxeles de arte" (652×320, ×3 = mundo): cubículos, puertas, pasillo, ala derecha (sala de juntas con llamada + zona social sin llamada de sala, solo charla por cercanía), colisiones, `zoneAt`, `areaAt` |
 | `src/scene/*` | Escena pixel art generada por código (pixel.ts primitivas, sprites.ts, index.ts arma el lienzo estático). `simple.ts`: plano liso de la vista *Simplificado* (vectores, desde `map.ts`, incluye `WALLS_ART`). Dos versiones, de noche y de día (`Light`): `buildScene(assets, light)` cambia la paleta (`PAL` ← `NIGHT`/`DAY` en sprites.ts, con `setLight`), el cielo de las ventanas y la iluminación (`drawLighting` / `drawDaylight`); un color nuevo de mueble va en las dos paletas |
 | `src/assets.ts` | Carga sprites de LimeZu (`public/assets/limezu/`): personajes 16×32 animados y atlas de muebles. Personajes propios en `CUSTOM_SPRITES` (`public/assets/personajes/`, cuadros y cantidad de poses propios, se dibujan a la altura `BODY_H` de LimeZu, un paso = 0,6 s); se generan con `scripts/armar_skin.py` desde una imagen con una fila de poses de caminata por dirección (`scripts/skins/`; fondo transparente o liso) |

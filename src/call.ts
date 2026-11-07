@@ -1,4 +1,4 @@
-import {initials, personById} from './config'
+import {initials, personById, shortName} from './config'
 import {netLog} from './diag'
 import {icon} from './icons'
 import {Ink} from './ink'
@@ -414,7 +414,7 @@ export class Call {
   }
 
   /** Con quiénes estoy hablando ahora (sin mí), para la mini ventana. */
-  peers(): {key: string; name: string; color: string; stream: MediaStream | null; cam: boolean; mic: boolean; speaking: boolean}[] {
+  peers(): {key: string; name: string; short: string; color: string; stream: MediaStream | null; cam: boolean; mic: boolean; speaking: boolean}[] {
     if (this.panel.hidden) return []
     const now = performance.now()
     return [...this.wanted()]
@@ -425,6 +425,7 @@ export class Call {
         return {
           key: p.peerId,
           name: person?.name ?? 'Invitado',
+          short: person ? shortName(person) : 'Invitado',
           color: person?.color ?? '#888',
           stream: this.camOf(p.peerId),
           cam: p.cam !== false,
@@ -1020,7 +1021,8 @@ export class Call {
     if (!sid || this.inkNotified.has(`${sid}:${peerId}`)) return
     this.inkNotified.add(`${sid}:${peerId}`)
     if (this.layout === 'present' && !this.dismissed.has(sid)) return
-    const name = personById(this.net.players.get(peerId)?.person ?? '')?.name.split(' ')[0] ?? 'Alguien'
+    const who = personById(this.net.players.get(peerId)?.person ?? '')
+    const name = who ? shortName(who) : 'Alguien'
     say(`${name} está anotando sobre tu pantalla.`, [{label: 'Ver', fn: () => this.setView('present')}])
   }
 

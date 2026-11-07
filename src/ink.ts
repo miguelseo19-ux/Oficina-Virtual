@@ -1,4 +1,4 @@
-import {personById} from './config'
+import {personById, shortName} from './config'
 import {icon} from './icons'
 import type {Net} from './net'
 
@@ -407,7 +407,7 @@ export class Ink {
 
   private tag(g: CanvasRenderingContext2D, st: Stroke, r: {x: number; y: number; w: number; h: number}, alpha: number) {
     const person = personById(this.net.players.get(st.by)?.person ?? '')
-    const name = person?.name.split(' ')[0] ?? 'Invitado'
+    const name = person ? shortName(person) : 'Invitado'
     const x = r.x + st.pts[st.pts.length - 2] * r.w + 10
     const y = r.y + st.pts[st.pts.length - 1] * r.h + 10
     g.save()
