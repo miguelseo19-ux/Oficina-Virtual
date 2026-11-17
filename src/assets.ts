@@ -78,7 +78,7 @@ function loadOnce(src: string): Promise<HTMLImageElement> {
 async function load(src: string): Promise<HTMLImageElement> {
   for (let i = 0; ; i++) {
     try {
-      return await loadOnce(i === 0 ? src : `${src}?r=${Date.now()}`)
+      return await loadOnce(i === 0 ? src : `${src}${src.includes('?') ? '&' : '?'}r=${Date.now()}`)
     } catch (e) {
       if (i >= 2) throw e
       await new Promise(r => setTimeout(r, 800 * (i + 1)))
@@ -100,7 +100,12 @@ export async function loadAssets(): Promise<Assets | null> {
     const [props, ...chars] = await Promise.all([
       load(BASE + 'props.png'),
       ...CHARACTER_SPRITES.map(n => load(`${BASE}characters/${n}.png`).catch(() => null)),
-      ...custom.map(n => load(`${import.meta.env.BASE_URL}assets/personajes/${n}.png`).catch(() => null))
+      // ?v= cambia con el formato de la hoja: una versión vieja en caché no se mezcla con el código nuevo
+      ...custom.map(n => {
+        const f = CUSTOM_SPRITES[n]
+        const v = `${f.w}x${f.h}-${f.frames}-${f.idle ?? f.frames}`
+        return load(`${import.meta.env.BASE_URL}assets/personajes/${n}.png?v=${v}`).catch(() => null)
+      })
     ])
     const characters: Record<string, HTMLImageElement> = {}
     ;[...CHARACTER_SPRITES, ...custom].forEach((n, i) => {
