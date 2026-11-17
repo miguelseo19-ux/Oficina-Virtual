@@ -1,5 +1,5 @@
 import './style.css'
-import {deskOwner, initials, PEOPLE, personById, shortName, type Person} from './config'
+import {ao, deskOwner, initials, PEOPLE, personById, shortName, type Person} from './config'
 import {AREAS, ART, areaAt, collides, deskByNum, DESKS, PX, roomById, ROOMS, SOLIDS, WORLD, zoneAt, type Room} from './map'
 import {buildScene} from './scene'
 import {drawSimpleMap} from './scene/simple'
@@ -44,8 +44,10 @@ const STATUS_LABEL: Record<Status, string> = {
   away: 'ausente'
 }
 const STATUS_COLOR: Record<Status, string> = {available: '#3bb273', busy: '#fa4616', away: '#f2c94c'}
-/** "En reunión" (por el calendario) es Ocupado para las llamadas, pero se muestra distinto. */
-const statusText = (st: Status, meeting?: boolean) => (st === 'busy' && meeting ? 'en reunión' : STATUS_LABEL[st])
+/** "En reunión" (por el calendario) es Ocupado para las llamadas, pero se muestra distinto.
+ *  `who`: para decir "ocupada" si la persona tiene `fem`. */
+const statusText = (st: Status, meeting?: boolean, who?: Person) =>
+  st === 'busy' && meeting ? 'en reunión' : st === 'busy' ? `ocupad${ao(who)} (no molestar)` : STATUS_LABEL[st]
 
 function lsGet(k: string) {
   try {
@@ -172,11 +174,15 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
   function renderStatusUI() {
     $('me-dot').style.background = STATUS_COLOR[status]
     const meet = status === 'busy' && inMeeting() ? calendar?.current() : null
-    const label = meet ? `En reunión hasta las ${hhmm(new Date(meet.fin).getTime())}` : STATUS_LABEL[status]
+    const label = meet ? `En reunión hasta las ${hhmm(new Date(meet.fin).getTime())}` : statusText(status, false, me)
     $('pill-me').dataset.tip = `${label[0].toUpperCase()}${label.slice(1)} · B`
     for (const b of document.querySelectorAll<HTMLButtonElement>('#status-menu [data-status]')) {
       b.classList.toggle('sel', b.dataset.status === manualStatus)
     }
+  }
+  if (me.fem) {
+    const busyBtn = document.querySelector('#status-menu [data-status="busy"]')
+    if (busyBtn?.lastChild) busyBtn.lastChild.textContent = 'Ocupada (no molestar)'
   }
   for (const b of document.querySelectorAll<HTMLButtonElement>('#status-menu [data-status]')) {
     b.onclick = () => {
@@ -509,7 +515,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
     const needPerson = (fn: (p: Person) => void) => {
       const p = findPerson(rest[0] ?? '')
       if (!p) return toast(rest[0] ? `No encontré a "${rest[0]}"` : 'Falta el nombre. Ej: /ir migue')
-      if (!net.peersOf(p.id).length) return toast(`${p.name} no está conectado`)
+      if (!net.peersOf(p.id).length) return toast(`${p.name} no está conectad${ao(p)}`)
       fn(p)
     }
     switch (cmd) {
@@ -530,7 +536,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
         const text = rest.slice(1).join(' ').trim()
         if (!p || !text) return toast('Uso: /msj nombre texto')
         chat.sendTo(`dm:${p.id}`, text)
-        if (!net.peersOf(p.id).length) toast(`${p.name} no está conectado: no le va a llegar`)
+        if (!net.peersOf(p.id).length) toast(`${p.name} no está conectad${ao(p)}: no le va a llegar`)
         else toast(`Enviado a ${p.name}`, [], 'send')
         return
       }
@@ -543,7 +549,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       case 'ocupado':
       case 'busy':
         setManualStatus('busy')
-        return toast('Estás ocupado (no molestar)', [], 'moon')
+        return toast(`Estás ocupad${ao(me)} (no molestar)`, [], 'moon')
       case 'disponible':
         setManualStatus('available')
         return toast('Estás disponible', [], 'check')
@@ -561,9 +567,10 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       case 'quienes':
       case 'equipo': {
         const lines = [...net.players.values()].map(p => {
-          const n = personById(p.person)?.name ?? '?'
+          const who = personById(p.person)
+          const n = who?.name ?? '?'
           const where = p.zone ? zoneLabel(p.zone) : (areaAt(p.x, p.y)?.toLowerCase() ?? 'pasillo')
-          return `${n} (${statusText(p.status, p.meeting)}, ${where})`
+          return `${n} (${statusText(p.status, p.meeting, who)}, ${where})`
         })
         return toast(lines.length ? `Conectados: ${lines.join(' · ')}` : 'No hay nadie más conectado')
       }
@@ -1054,8 +1061,9 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       if (z !== null) {
         const busy = [...net.players.values()].filter(p => p.zone === z && p.status === 'busy')
         for (const b of busy) {
-          const n = personById(b.person)?.name ?? 'Alguien'
-          toast(b.meeting ? `${n} está en una reunión` : `${n} está ocupado (no molestar)`, [], b.meeting ? 'calendar' : 'moon')
+          const who = personById(b.person)
+          const n = who?.name ?? 'Alguien'
+          toast(b.meeting ? `${n} está en una reunión` : `${n} está ocupad${ao(who)} (no molestar)`, [], b.meeting ? 'calendar' : 'moon')
         }
       }
     } else if (talkChanged) {
@@ -1835,7 +1843,7 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
             : area
               ? `en la ${area.toLowerCase()}`
               : 'en el pasillo'
-          text = `${statusText(st, isMe ? inMeeting() : rp?.meeting)} · ${where}`
+          text = `${statusText(st, isMe ? inMeeting() : rp?.meeting, p)} · ${where}`
         }
         li.innerHTML = `<span class="dot"></span><span class="n"></span><span class="s"></span><span class="acts"></span>`
         const dot = li.querySelector('.dot') as HTMLElement

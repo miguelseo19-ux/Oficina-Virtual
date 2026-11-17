@@ -108,7 +108,7 @@ licencia de **uso no comercial**. Están recortados en `public/assets/limezu/`
 el dibujo generado por código.
 
 - Cada persona elige su personaje con `sprite` en `src/config.ts`
-  (`Adam`, `Alex`, `Alex_b`, `Amelia`, `Bob`, o uno propio como `Miguel`, `Nico`, `Fran` o `Agus`; `Blanco` = silueta para un puesto sin persona todavía).
+  (`Adam`, `Alex`, `Alex_b`, `Amelia`, `Bob`, o uno propio como `Miguel`, `Nico`, `Fran`, `Agus` o `Alpha`; `Blanco` = silueta para un puesto sin persona todavía).
 
 ### Personajes propios (skins)
 

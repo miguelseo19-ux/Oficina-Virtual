@@ -31,6 +31,7 @@ export const CUSTOM_SPRITES: Record<string, SpriteFrame> = {
   Fran: {w: 25, h: 44, body: 40, frames: 4},
   Agus: {w: 24, h: 44, body: 40, frames: 4},
   Miguel: {w: 32, h: 42, body: 40, frames: 4},
+  Alpha: {w: 25, h: 42, body: 40, frames: 4},
   // silueta neutra para un puesto sin persona todavía (sale de Adam de LimeZu: misma grilla y caminata)
   Blanco: {w: 16, h: 32, body: 23, frames: 6}
 }

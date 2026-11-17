@@ -2,7 +2,8 @@
 //  CONFIGURACIÓN DE LA OFICINA
 //  Para agregar a alguien: sumá una entrada en PEOPLE con un
 //  `desk` libre (1 a 12) y un `sprite`: uno de LimeZu (Adam, Alex, Alex_b,
-//  Amelia, Bob) o uno propio de CUSTOM_SPRITES en src/assets.ts (Miguel, Nico, Fran, Agus).
+//  Amelia, Bob) o uno propio de CUSTOM_SPRITES en src/assets.ts (Miguel, Nico, Fran, Agus, Alpha).
+//  `fem: true` pone en femenino los textos sobre esa persona ("ocupada", "conectada").
 //  Un puesto todavía sin persona: `name` = el cargo, `role` vacío, `short` = el cargo y
 //  `sprite: 'Blanco'` (silueta neutra, sin personaje).
 // ─────────────────────────────────────────────────────────────
@@ -13,15 +14,16 @@ export interface Person {
   role: string
   color: string
   desk: number // 1..12
-  sprite: string // personaje pixel art: Adam, Alex, Alex_b, Amelia, Bob, propio (Miguel, Nico, Fran, Agus) o Blanco
+  sprite: string // personaje pixel art: Adam, Alex, Alex_b, Amelia, Bob, propio (Miguel, Nico, Fran, Agus, Alpha) o Blanco
   short?: string // nombre corto en carteles, avisos y chat (por defecto, el primer nombre)
+  fem?: boolean // textos sobre la persona en femenino
 }
 
 export const PEOPLE: Person[] = [
   {id: 'miguel', name: 'Miguel Marin', role: 'CEO', color: '#b8693a', desk: 1, sprite: 'Miguel'},
   {id: 'nico', name: 'Nico Iannaci', role: 'CEO', color: '#4f7ea6', desk: 2, sprite: 'Nico'},
   {id: 'francisco', name: 'Francisco Di Giorno', role: 'COO', color: '#4f8f6a', desk: 3, sprite: 'Fran'},
-  {id: 'pm', name: 'Project Manager', short: 'Project Manager', role: '', color: '#8a6bb8', desk: 4, sprite: 'Blanco'},
+  {id: 'alpha', name: 'Alpha', role: 'Project Manager', color: '#8a6bb8', desk: 4, sprite: 'Alpha', fem: true},
   {id: 'agus', name: 'Agus', role: 'Content Manager', color: '#c9a04f', desk: 5, sprite: 'Agus'},
   {id: 'carlitos', name: 'Carlitos', role: 'AI Consultor', color: '#b8545e', desk: 6, sprite: 'Bob'}
 ]
@@ -62,6 +64,8 @@ export function deskOwner(desk: number): Person | undefined {
 
 /** Nombre corto: "Miguel" de "Miguel Marin" (o `short` si la persona lo tiene). */
 export const shortName = (p: Person) => p.short ?? p.name.split(' ')[0]
+/** Terminación según la persona: `ocupad${ao(p)}` → "ocupado" / "ocupada". */
+export const ao = (p: Person | undefined) => (p?.fem ? 'a' : 'o')
 
 export function initials(name: string): string {
   return name
