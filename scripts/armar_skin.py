@@ -16,12 +16,15 @@ Uso (necesita Pillow y numpy):
 
 Salida: misma grilla que los personajes de LimeZu (ver src/assets.ts): 2 filas
 (caminar / reposo) × 4 direcciones (derecha, arriba, izquierda, abajo) × N cuadros.
-Reposo = la segunda pose (piernas juntas). Al final imprime la línea para CUSTOM_SPRITES.
+Reposo = la segunda pose (piernas juntas), animada con animar_reposo.py (respira, como los de
+LimeZu). Al final imprime la línea para CUSTOM_SPRITES.
 """
 import argparse
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageOps
+
+from animar_reposo import REPOSO, animate
 
 BODY = 40  # alto del cuerpo en la hoja, en la pose de reposo
 ORDER = ['right', 'up', 'left', 'down']
@@ -157,10 +160,11 @@ def main():
                 # imagen original); la pose más alta apoya los pies en la última fila del cuadro
                 y = sheet_row * fh + fh - tallest
                 sheet.alpha_composite(p['img'], (x, y))
+    sheet = animate(sheet, n, fw, fh)
     sheet.save(args.out, optimize=True)
     name = args.out.rsplit('/', 1)[-1].rsplit('.', 1)[0]
     print(f'{args.out}: {sheet.width}×{sheet.height}, {n} cuadros por dirección de {fw}×{fh}')
-    print(f'CUSTOM_SPRITES en src/assets.ts →  {name}: {{w: {fw}, h: {fh}, body: {BODY}, frames: {n}}}')
+    print(f'CUSTOM_SPRITES en src/assets.ts →  {name}: {{w: {fw}, h: {fh}, body: {BODY}, frames: {n}, idle: {REPOSO}}}')
 
 
 if __name__ == '__main__':

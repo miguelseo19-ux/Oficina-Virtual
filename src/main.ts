@@ -1557,10 +1557,14 @@ function start(me: Person, key: string, auth: {google: boolean; calendar: boolea
       ctx.restore()
     }
     const row = mov ? 0 : 1
-    // un paso completo dura 0,6 s tenga los cuadros que tenga (LimeZu: 6 cuadros → 10 por segundo)
+    // un paso completo dura 0,6 s tenga los cuadros que tenga (LimeZu: 6 cuadros → 10 por segundo);
+    // el reposo (respirar) va a 6 cuadros por segundo
+    const count = mov ? fr.frames : (fr.idle ?? fr.frames)
     const fps = mov ? fr.frames / 0.6 : 6
-    const frame = Math.floor(now / (1000 / fps)) % fr.frames
-    const sx = (DIR_INDEX[dir] * fr.frames + frame) * fr.w
+    // cada uno respira a su ritmo (desfasado según el escritorio), no todos a la vez
+    const t = mov ? now : now + p.desk * 167
+    const frame = Math.floor(t / (1000 / fps)) % count
+    const sx = (DIR_INDEX[dir] * count + frame) * fr.w
     ctx.imageSmoothingEnabled = false
     ctx.drawImage(sheet, sx, row * fr.h, fr.w, fr.h, Math.round(x - w / 2), Math.round(feet - h), w, h)
     ctx.imageSmoothingEnabled = true

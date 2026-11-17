@@ -17,21 +17,23 @@ export const BODY_H = 23
 
 /**
  * Personajes propios (public/assets/personajes/<nombre>.png): misma grilla que LimeZu
- * (2 filas: caminar / reposo; 4 direcciones × `frames` cuadros) pero con cuadros de w×h y el
- * cuerpo de `body` px de alto. Se generan con scripts/armar_skin.py, que imprime esta línea.
+ * (2 filas: caminar con `frames` cuadros por dirección / reposo con `idle`; 4 direcciones) pero
+ * con cuadros de w×h y el cuerpo de `body` px de alto. Se generan con scripts/armar_skin.py, que
+ * imprime esta línea; el reposo animado (respira, como LimeZu) sale de scripts/animar_reposo.py.
  */
 export interface SpriteFrame {
   w: number
   h: number
   body: number
-  frames: number // cuadros por dirección
+  frames: number // cuadros de caminata por dirección
+  idle?: number // cuadros de reposo por dirección (por defecto, `frames`)
 }
 export const CUSTOM_SPRITES: Record<string, SpriteFrame> = {
-  Nico: {w: 33, h: 43, body: 40, frames: 4},
-  Fran: {w: 25, h: 44, body: 40, frames: 4},
-  Agus: {w: 24, h: 44, body: 40, frames: 4},
-  Miguel: {w: 32, h: 42, body: 40, frames: 4},
-  Alpha: {w: 25, h: 42, body: 40, frames: 4},
+  Nico: {w: 33, h: 43, body: 40, frames: 4, idle: 6},
+  Fran: {w: 25, h: 44, body: 40, frames: 4, idle: 6},
+  Agus: {w: 24, h: 44, body: 40, frames: 4, idle: 6},
+  Miguel: {w: 32, h: 42, body: 40, frames: 4, idle: 6},
+  Alpha: {w: 25, h: 42, body: 40, frames: 4, idle: 6},
   // silueta neutra para un puesto sin persona todavía (sale de Adam de LimeZu: misma grilla y caminata)
   Blanco: {w: 16, h: 32, body: 23, frames: 6}
 }
